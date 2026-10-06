@@ -1,0 +1,66 @@
+# Builds, signs and publishes a release when a version tag is pushed:
+#   1. bump `version` in Cargo.toml (e.g. 0.3.0) and commit
+#   2. git tag -a v0.3.0 -m "Mitä uutta: ..."   (the tag message becomes the update notes)
+#   3. git push origin main v0.3.0
+# Installed apps pick the release up via latest.json within 6 hours (or "Tarkista nyt").
+# Needs the repository secret TIKSU_SIGNING_KEY (contents of the key from `tiksu-release keygen`).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag message as release notes
+        shell: pwsh
+        run: |
+          git fetch --force origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
+          $notes = git tag -l --format='%(contents)' "${{ github.ref_name }}"
+          if (-not $notes) { $notes = "Tiksu Clipper ${{ github.ref_name }}" }
+          $notes | Out-File -Encoding utf8NoBOM notes.txt
+
+      - name: Version must match the tag
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Cargo.toml version $v does not match tag ${{ github.ref_name }}" }
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release --bins
+
+      - name: Sign
+        shell: pwsh
+        env:
+          TIKSU_SIGNING_KEY: ${{ secrets.TIKSU_SIGNING_KEY }}
+        run: |
+          if (-not $env:TIKSU_SIGNING_KEY) { throw "Secret TIKSU_SIGNING_KEY is missing" }
+          $tag = "${{ github.ref_name }}"
+          Copy-Item target/release/silly-borg.exe TiksuClipper.exe
+          ./target/release/tiksu-release.exe sign `
+            --exe TiksuClipper.exe `
+            --version $tag.TrimStart('v') `
+            --url "https://github.com/${{ github.repository }}/releases/download/$tag/TiksuClipper.exe" `
+            --notes-file notes.txt `
+            --out latest.json
+
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release create $tag TiksuClipper.exe latest.json --title "Tiksu Clipper $tag" --notes-file notes.txt

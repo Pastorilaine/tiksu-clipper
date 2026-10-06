@@ -1,0 +1,25 @@
+[package]
+name = "silly-borg"
+version = "0.2.0"
+default-run = "silly-borg"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.45"
+dirs = "7.0.0"
+eframe = { version = "0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow"] }
+global-hotkey = "0.8.0"
+parking_lot = "0.12.5"
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tray-icon = "0.26.0"
+egui-phosphor = "0.14.0"
+windows-capture = "2.0.1"
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_System_Performance", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_System_Registry", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_System_Diagnostics_Debug"] }
+# Same version windows-capture already builds; only the in-memory stream types are used from it.
+windows = { version = "0.62.2", features = ["Storage_Streams", "Foundation"] }
+wasapi = "0.25"
+# Update signatures (ed25519) and key generation for the release tool.
+ed25519-dalek = "2"
+getrandom = "0.3"
