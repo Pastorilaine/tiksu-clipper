@@ -166,3 +166,54 @@ pub fn wait_for_exit(pid: u32, timeout_ms: u32) {
         }
     }
 }
+
+/// Colours the native title bar to match the app (Windows 11: caption, text and border colours;
+/// Windows 10 only gets the dark mode flag). Cheap to call every frame: the work is done once, as soon
+/// as the window exists.
+pub fn style_titlebar(bg: eframe::egui::Color32, text: eframe::egui::Color32, border: eframe::egui::Color32) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, GetWindowThreadProcessId};
+
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if DONE.load(Ordering::Relaxed) {
+        return;
+    }
+
+    struct Search {
+        pid: u32,
+        found: HWND,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        unsafe {
+            let search = &mut *(lparam as *mut Search);
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            let mut title = [0u16; 32];
+            let len = GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32);
+            if pid == search.pid && String::from_utf16_lossy(&title[..len.max(0) as usize]) == "Tiksu Clipper" {
+                search.found = hwnd;
+                return 0;
+            }
+            1
+        }
+    }
+
+    let mut search = Search { pid: unsafe { GetCurrentProcessId() }, found: std::ptr::null_mut() };
+    unsafe { EnumWindows(Some(visit), &mut search as *mut Search as LPARAM) };
+    if search.found.is_null() {
+        return;
+    }
+    let colorref = |c: eframe::egui::Color32| c.r() as u32 | (c.g() as u32) << 8 | (c.b() as u32) << 16;
+    let set = |attribute: u32, value: u32| unsafe {
+        DwmSetWindowAttribute(search.found, attribute, (&value as *const u32).cast(), 4);
+    };
+    set(20, 1); // DWMWA_USE_IMMERSIVE_DARK_MODE
+    set(34, colorref(border)); // DWMWA_BORDER_COLOR
+    set(35, colorref(bg)); // DWMWA_CAPTION_COLOR
+    set(36, colorref(text)); // DWMWA_TEXT_COLOR
+    DONE.store(true, Ordering::Relaxed);
+}

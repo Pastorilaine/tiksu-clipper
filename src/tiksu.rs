@@ -1,46 +1,43 @@
-//! Tiksu design system for egui. Values are copied from `Tiksu brändi/DESIGN.md` and
-//! `design-system/tiksu.css` (dark theme only, by design). Change the brand there first.
+//! Design system for egui: the IT-Veljekset look from ProjectHub (`IT-Veljekset Group/DESIGN.md`).
+//! Neutral near-black surfaces, 1px borders instead of shadows, one blue accent, colour only as meaning.
+//! Scales are fixed: radius 6/10/14, font 11/12/13/15/20, control heights 28/32/40.
+//! Dark theme only; the tokens are the single place to add a light one.
 
 use eframe::egui::{
-    self, epaint, text::LayoutJob, vec2, Align, Color32, CornerRadius, FontData,
-    FontDefinitions, FontFamily, FontId, Frame, Margin, Painter, Pos2, Rect, Response, RichText,
-    Sense, Shadow, Stroke, TextFormat, TextStyle, Ui, WidgetInfo, WidgetText, WidgetType,
+    self, vec2, Align, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Frame, Layout, Margin,
+    Rect, Response, RichText, Sense, Shadow, Stroke, TextStyle, Ui, WidgetInfo, WidgetText, WidgetType,
 };
 
-// --- Colors (translucent tokens are premultiplied: rgb * alpha) ---
-pub const MINT: Color32 = Color32::from_rgb(0x3a, 0xd9, 0xb8);
-pub const BLUE: Color32 = Color32::from_rgb(0x5b, 0x7d, 0xff);
-pub const BG: Color32 = Color32::from_rgb(0x07, 0x0f, 0x14);
-pub const SURFACE: Color32 = Color32::from_rgb(0x10, 0x1c, 0x25);
-pub const SURFACE_HOVER: Color32 = Color32::from_rgb(0x16, 0x24, 0x2e);
-pub const SURFACE_SUNK: Color32 = Color32::from_rgb(0x05, 0x0c, 0x11);
-pub const OVERLAY: Color32 = Color32::from_rgb(0x0d, 0x1a, 0x22);
-/// Sidebar: near-black, darker than every surface so white nav text reads at a glance.
-pub const SIDEBAR_BG: Color32 = Color32::from_rgb(0x03, 0x07, 0x0a);
-pub const LINE: Color32 = Color32::from_rgba_premultiplied(18, 22, 24, 31); // rgba(146,184,200,.12)
-pub const LINE_STRONG: Color32 = Color32::from_rgba_premultiplied(32, 40, 44, 56); // .22
-pub const LINE_BRAND: Color32 = Color32::from_rgba_premultiplied(20, 76, 64, 89); // mint .35
-pub const TEXT: Color32 = Color32::from_rgb(0xea, 0xf2, 0xf7);
-pub const TEXT_2: Color32 = Color32::from_rgb(0xb9, 0xcb, 0xd6);
-pub const MUTED: Color32 = Color32::from_rgb(0x82, 0x98, 0xa5);
-pub const ON_BRAND: Color32 = Color32::from_rgb(0x04, 0x12, 0x1a);
-pub const WARNING: Color32 = Color32::from_rgb(0xf0, 0xb3, 0x54);
-pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x6b, 0x7d);
+// --- Tokens (DESIGN.md 2.1) ---
+pub const BG: Color32 = Color32::from_rgb(13, 15, 18);
+pub const SURFACE: Color32 = Color32::from_rgb(20, 23, 28);
+pub const SURFACE_2: Color32 = Color32::from_rgb(26, 30, 36);
+pub const LINE: Color32 = Color32::from_rgb(36, 41, 47);
+pub const LINE_STRONG: Color32 = Color32::from_rgb(51, 58, 67);
+pub const TEXT: Color32 = Color32::from_rgb(230, 232, 235);
+pub const MUTED: Color32 = Color32::from_rgb(154, 163, 173);
+pub const SUBTLE: Color32 = Color32::from_rgb(107, 116, 126);
+pub const ACCENT: Color32 = Color32::from_rgb(59, 130, 246);
+pub const ACCENT_FG: Color32 = Color32::WHITE;
+pub const SUCCESS: Color32 = Color32::from_rgb(34, 197, 94);
+pub const WARN: Color32 = Color32::from_rgb(245, 158, 11);
+pub const DANGER: Color32 = Color32::from_rgb(239, 68, 68);
 
-// --- Radii, sizes ---
-pub const R_SM: u8 = 8;
-pub const R_MD: u8 = 12;
-pub const R_LG: u8 = 16;
-pub const SIDEBAR_W: f32 = 264.0;
-pub const TOPBAR_H: f32 = 64.0;
-pub const PAGE_PAD: i8 = 32;
+// --- Scales (DESIGN.md 2.2) ---
+pub const R_SM: u8 = 6;
+pub const R_MD: u8 = 10;
+pub const R_LG: u8 = 14;
+pub const SIDEBAR_W: f32 = 240.0;
+pub const TOPBAR_H: f32 = 40.0;
+pub const PAGE_PAD: i8 = 24;
+/// Settings pages read best in one column; list pages use the full width.
+pub const READ_W: f32 = 880.0;
 
-// --- Fonts: Outfit (display), Instrument Sans (UI), JetBrains Mono (data) ---
-const DISPLAY: &str = "tk-display";
+// --- Fonts: Segoe UI from Windows (as ProjectHub), Instrument Sans bundled as fallback ---
 const SEMIBOLD: &str = "tk-semibold";
 
-pub fn display_font(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Name(DISPLAY.into()))
+pub fn font(size: f32) -> FontId {
+    FontId::proportional(size)
 }
 pub fn semibold_font(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name(SEMIBOLD.into()))
@@ -49,249 +46,211 @@ pub fn mono_font(size: f32) -> FontId {
     FontId::new(size, FontFamily::Monospace)
 }
 
+fn system_font(file: &str) -> Option<Vec<u8>> {
+    let windir = std::env::var_os("WINDIR").map(std::path::PathBuf::from)?;
+    std::fs::read(windir.join("Fonts").join(file)).ok()
+}
+
 /// Installs fonts, text styles and widget visuals. Call once at startup.
 pub fn install(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
-    let faces: [(&str, &'static [u8]); 4] = [
-        ("outfit-bold", include_bytes!("../assets/fonts/Outfit-Bold.ttf")),
-        ("instrument-regular", include_bytes!("../assets/fonts/InstrumentSans-Regular.ttf")),
-        ("instrument-semibold", include_bytes!("../assets/fonts/InstrumentSans-SemiBold.ttf")),
-        ("jetbrains-medium", include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf")),
-    ];
-    for (name, bytes) in faces {
-        fonts.font_data.insert(name.into(), FontData::from_static(bytes).into());
-    }
+    let mut add = |name: &str, bytes: Vec<u8>| {
+        fonts.font_data.insert(name.into(), FontData::from_owned(bytes).into());
+    };
+    add("instrument-regular", include_bytes!("../assets/fonts/InstrumentSans-Regular.ttf").to_vec());
+    add("instrument-semibold", include_bytes!("../assets/fonts/InstrumentSans-SemiBold.ttf").to_vec());
+    add("jetbrains-medium", include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf").to_vec());
+    let segoe = system_font("segoeui.ttf").zip(system_font("seguisb.ttf"));
+    let (regular, semibold) = match segoe {
+        Some((regular, semibold)) => {
+            add("segoe", regular);
+            add("segoe-semibold", semibold);
+            ("segoe", "segoe-semibold")
+        }
+        None => ("instrument-regular", "instrument-semibold"),
+    };
     // egui's bundled fonts stay as fallbacks (symbols, emoji).
     let fallback = fonts.families[&FontFamily::Proportional].clone();
     let family = |first: &str| [vec![first.to_string()], fallback.clone()].concat();
-    fonts.families.insert(FontFamily::Proportional, family("instrument-regular"));
-    fonts.families.insert(FontFamily::Name(DISPLAY.into()), family("outfit-bold"));
-    fonts.families.insert(FontFamily::Name(SEMIBOLD.into()), family("instrument-semibold"));
+    fonts.families.insert(FontFamily::Proportional, family(regular));
+    fonts.families.insert(FontFamily::Name(SEMIBOLD.into()), family(semibold));
     fonts.families.get_mut(&FontFamily::Monospace).unwrap().insert(0, "jetbrains-medium".into());
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-    for name in [DISPLAY, SEMIBOLD] {
-        fonts.families.get_mut(&FontFamily::Name(name.into())).unwrap().push("phosphor".into());
-    }
+    fonts.families.get_mut(&FontFamily::Name(SEMIBOLD.into())).unwrap().push("phosphor".into());
     ctx.set_fonts(fonts);
 
     ctx.all_styles_mut(|style| {
         style.text_styles = [
-            (TextStyle::Heading, display_font(28.0)),
-            (TextStyle::Body, FontId::proportional(15.0)),
-            (TextStyle::Button, semibold_font(14.0)),
-            (TextStyle::Small, FontId::proportional(13.0)),
-            (TextStyle::Monospace, mono_font(13.0)),
+            (TextStyle::Heading, semibold_font(20.0)),
+            (TextStyle::Body, font(13.0)),
+            (TextStyle::Button, semibold_font(13.0)),
+            (TextStyle::Small, font(12.0)),
+            (TextStyle::Monospace, mono_font(12.0)),
         ]
         .into();
         style.spacing.item_spacing = vec2(8.0, 8.0);
-        style.spacing.button_padding = vec2(12.0, 9.0);
-        style.spacing.interact_size.y = 40.0;
+        style.spacing.button_padding = vec2(10.0, 5.0);
+        style.spacing.interact_size.y = 32.0;
         style.spacing.combo_height = 320.0;
 
         let v = &mut style.visuals;
         *v = egui::Visuals::dark();
         v.panel_fill = BG;
-        v.window_fill = OVERLAY;
-        v.extreme_bg_color = SURFACE_SUNK;
+        v.window_fill = SURFACE;
+        v.extreme_bg_color = SURFACE_2;
         v.faint_bg_color = SURFACE;
-        v.code_bg_color = SURFACE_SUNK;
-        v.hyperlink_color = BLUE;
-        v.warn_fg_color = WARNING;
+        v.code_bg_color = SURFACE_2;
+        v.hyperlink_color = ACCENT;
+        v.warn_fg_color = WARN;
         v.error_fg_color = DANGER;
         v.window_stroke = Stroke::new(1.0, LINE_STRONG);
-        v.window_corner_radius = CornerRadius::same(R_MD);
-        v.menu_corner_radius = CornerRadius::same(R_MD);
-        v.window_shadow = Shadow { offset: [0, 16], blur: 48, spread: 0, color: Color32::from_black_alpha(150) };
+        v.window_corner_radius = CornerRadius::same(R_LG);
+        v.menu_corner_radius = CornerRadius::same(R_LG);
+        // The one shadow: floating things only (DESIGN.md: 0 12px 32px rgb(0 0 0 / .28)).
+        v.window_shadow = Shadow { offset: [0, 12], blur: 32, spread: 0, color: Color32::from_black_alpha(71) };
         v.popup_shadow = v.window_shadow;
-        v.selection.bg_fill = Color32::from_rgba_premultiplied(9, 35, 29, 41); // mint .16
-        v.selection.stroke = Stroke::new(1.0, MINT);
+        v.selection.bg_fill = ACCENT.gamma_multiply(0.20);
+        v.selection.stroke = Stroke::new(1.0, ACCENT);
         v.slider_trailing_fill = true;
 
         let w = &mut v.widgets;
         w.noninteractive.bg_fill = SURFACE;
         w.noninteractive.bg_stroke = Stroke::new(1.0, LINE);
         w.noninteractive.fg_stroke = Stroke::new(1.0, TEXT);
-        // Inputs and selects sit sunk; hover lifts them to surface (tiksu.css .tk-input).
-        for (state, fill, stroke, fg) in [
-            (&mut w.inactive, SURFACE_SUNK, LINE, TEXT),
-            (&mut w.hovered, SURFACE_HOVER, LINE_STRONG, TEXT),
-            (&mut w.active, SURFACE_HOVER, MINT, TEXT),
-            (&mut w.open, SURFACE_SUNK, MINT, TEXT),
+        // Fields and selects: surface-2, hover lifts the border, focus is the accent (`.field`).
+        for (state, fill, stroke) in [
+            (&mut w.inactive, SURFACE_2, LINE),
+            (&mut w.hovered, SURFACE_2, LINE_STRONG),
+            (&mut w.active, SURFACE_2, ACCENT),
+            (&mut w.open, SURFACE_2, ACCENT),
         ] {
             state.bg_fill = fill;
             state.weak_bg_fill = fill;
             state.bg_stroke = Stroke::new(1.0, stroke);
-            state.fg_stroke = Stroke::new(1.0, fg);
+            state.fg_stroke = Stroke::new(1.0, TEXT);
             state.corner_radius = CornerRadius::same(R_MD);
             state.expansion = 0.0;
         }
-        w.inactive.bg_fill = LINE_STRONG; // slider rail
     });
 }
 
 // --- Text ---
 
-pub fn display(text: impl Into<String>, size: f32) -> RichText {
-    RichText::new(text).font(display_font(size)).color(TEXT)
+/// 13 / text.
+pub fn body(text: impl Into<String>) -> RichText {
+    RichText::new(text).size(13.0).color(TEXT)
 }
-
+/// 12 / muted: explanations under a label.
+pub fn hint(text: impl Into<String>) -> RichText {
+    RichText::new(text).size(12.0).color(MUTED)
+}
+/// 11 / subtle: metadata.
+pub fn meta(text: impl Into<String>) -> RichText {
+    RichText::new(text).size(11.0).color(SUBTLE)
+}
+/// Semibold, for titles and numbers only (DESIGN.md: 600 is for headings and figures).
+pub fn strong(text: impl Into<String>, size: f32) -> RichText {
+    RichText::new(text).font(semibold_font(size)).color(TEXT)
+}
 pub fn mono(text: impl Into<String>, size: f32) -> RichText {
     RichText::new(text).font(mono_font(size))
 }
 
-/// Mono, uppercase, 0.12em tracking. Used for nav groups, stat labels and product name.
-pub fn eyebrow(ui: &mut Ui, text: &str) {
-    ui.label(eyebrow_text(text, MUTED));
-}
-
-pub fn eyebrow_text(text: &str, color: Color32) -> LayoutJob {
-    let mut job = LayoutJob::default();
-    job.append(
-        &text.to_uppercase(),
-        0.0,
-        TextFormat { font_id: mono_font(11.0), color, extra_letter_spacing: 1.3, ..Default::default() },
-    );
-    job
-}
-
-// --- Brand gradient: always along the long axis, mint first ---
-
-fn lerp(a: Color32, b: Color32, t: f32) -> Color32 {
-    let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-    Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
-}
-
-pub fn gradient(painter: &Painter, rect: Rect, radius: u8, vertical: bool, opacity: f32) {
-    let mut mesh = epaint::Mesh::default();
-    let mut tess = epaint::Tessellator::new(
-        painter.ctx().pixels_per_point(),
-        Default::default(),
-        [1, 1],
-        vec![],
-    );
-    tess.tessellate_rect(&epaint::RectShape::filled(rect, radius, Color32::WHITE), &mut mesh);
-    for v in &mut mesh.vertices {
-        let t = if vertical {
-            (v.pos.y - rect.top()) / rect.height()
-        } else {
-            (v.pos.x - rect.left()) / rect.width()
-        };
-        v.color = lerp(MINT, BLUE, t.clamp(0.0, 1.0)).gamma_multiply(v.color.a() as f32 / 255.0 * opacity);
-    }
-    painter.add(mesh);
-}
-
-/// The single ambient mint glow in the page background (top-left).
-pub fn ambient_glow(painter: &Painter, center: Pos2, radius: f32) {
-    let mut mesh = epaint::Mesh::default();
-    let core = Color32::from_rgba_premultiplied(3, 12, 10, 14); // mint ~.055
-    mesh.colored_vertex(center, core);
-    let n = 48;
-    for i in 0..=n {
-        let a = i as f32 / n as f32 * std::f32::consts::TAU;
-        mesh.colored_vertex(center + radius * vec2(a.cos(), a.sin()), Color32::TRANSPARENT);
-        if i > 0 {
-            mesh.add_triangle(0, i, i + 1);
-        }
-    }
-    painter.add(mesh);
+/// A muted paragraph that wraps.
+pub fn note(ui: &mut Ui, text: impl Into<String>) {
+    ui.add(egui::Label::new(hint(text)).wrap());
 }
 
 fn focus_ring(ui: &Ui, response: &Response, radius: u8) {
     if response.has_focus() {
         ui.painter().rect_stroke(
-            response.rect.expand(2.0),
-            CornerRadius::same(radius.saturating_add(2)),
-            Stroke::new(2.0, MINT),
+            response.rect.expand(1.0),
+            CornerRadius::same(radius.saturating_add(1)),
+            Stroke::new(2.0, ACCENT),
             egui::StrokeKind::Outside,
         );
     }
 }
 
-// --- Buttons ---
+fn text_galley(ui: &Ui, text: &str, font: FontId) -> std::sync::Arc<egui::Galley> {
+    WidgetText::from(RichText::new(text).font(font)).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        TextStyle::Button,
+    )
+}
+
+// --- Buttons (`.btn`) ---
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Kind {
     Primary,
     Secondary,
     Ghost,
+    Danger,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Size {
+    /// 28 px (`.btn-sm`)
     Sm,
+    /// 32 px
     Md,
 }
 
-/// `tk-btn`. Hover changes color only: no lift, no scale, no glow.
+/// Hover changes colour only: no lift, no scale, no glow.
 pub fn button(ui: &mut Ui, kind: Kind, size: Size, text: &str, enabled: bool) -> Response {
-    let (height, pad, font, radius) = match size {
-        Size::Sm => (32.0, 12.0, semibold_font(13.0), R_SM),
-        Size::Md => (40.0, 16.0, semibold_font(14.0), R_MD),
-    };
-    let text_color = match kind {
-        Kind::Primary => ON_BRAND,
-        Kind::Secondary => TEXT,
-        Kind::Ghost => TEXT_2,
+    let (height, pad, font) = match size {
+        Size::Sm => (28.0, 10.0, semibold_font(12.0)),
+        Size::Md => (32.0, 12.0, semibold_font(13.0)),
     };
     let galley = text_galley(ui, text, font);
-    let size = vec2(galley.size().x + 2.0 * pad, height);
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
-    let (rect, response) = ui.allocate_exact_size(size, sense);
+    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 2.0 * pad, height), if enabled { Sense::click() } else { Sense::hover() });
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, text));
 
     if ui.is_rect_visible(rect) {
         let hovered = enabled && response.hovered();
-        let alpha = if enabled { 1.0 } else { 0.45 };
+        let alpha = if enabled { 1.0 } else { 0.4 };
+        let (fill, stroke, color) = match (kind, hovered) {
+            (Kind::Primary, false) => (ACCENT, Color32::TRANSPARENT, ACCENT_FG),
+            (Kind::Primary, true) => (ACCENT.lerp_to_gamma(Color32::WHITE, 0.12), Color32::TRANSPARENT, ACCENT_FG),
+            (Kind::Secondary, false) => (SURFACE_2, LINE, TEXT),
+            (Kind::Secondary, true) => (LINE, LINE_STRONG, TEXT),
+            (Kind::Ghost, false) => (Color32::TRANSPARENT, Color32::TRANSPARENT, MUTED),
+            (Kind::Ghost, true) => (SURFACE_2, LINE, TEXT),
+            (Kind::Danger, false) => (DANGER.gamma_multiply(0.10), DANGER.gamma_multiply(0.30), DANGER),
+            (Kind::Danger, true) => (DANGER.gamma_multiply(0.20), DANGER.gamma_multiply(0.30), DANGER),
+        };
         let p = ui.painter();
-        let r = CornerRadius::same(radius);
-        match kind {
-            Kind::Primary => {
-                gradient(p, rect, radius, false, alpha);
-                if hovered {
-                    p.rect_filled(rect, r, Color32::from_white_alpha(18)); // brightness(1.08)
-                }
-            }
-            Kind::Secondary => {
-                let fill = if hovered { SURFACE_HOVER } else { SURFACE };
-                let stroke = if hovered { LINE_BRAND } else { LINE_STRONG };
-                p.rect(rect, r, fill.gamma_multiply(alpha), Stroke::new(1.0, stroke), egui::StrokeKind::Inside);
-            }
-            Kind::Ghost => {
-                if hovered {
-                    p.rect_filled(rect, r, SURFACE);
-                }
-            }
-        }
-        let color = if kind == Kind::Ghost && hovered { TEXT } else { text_color };
+        p.rect(rect, CornerRadius::same(R_MD), fill.gamma_multiply(alpha), Stroke::new(1.0, stroke.gamma_multiply(alpha)), egui::StrokeKind::Inside);
         p.galley(rect.center() - galley.size() / 2.0, galley, color.gamma_multiply(alpha));
-        focus_ring(ui, &response, radius);
+        focus_ring(ui, &response, R_MD);
     }
     if enabled { response.on_hover_cursor(egui::CursorIcon::PointingHand) } else { response }
 }
 
-/// Segmented choice (sm buttons); the selected one gets the brand border.
+/// Choice among a few options as chips (`.chip`); the selected one is tinted with the accent.
 pub fn segmented<T: PartialEq + Copy>(ui: &mut Ui, value: &mut T, options: &[(T, &str)]) -> bool {
     let mut changed = false;
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for (option, label) in options {
             let selected = *value == *option;
-            let galley = text_galley(ui, label, semibold_font(13.0));
-            let (rect, response) =
-                ui.allocate_exact_size(vec2(galley.size().x + 24.0, 32.0), Sense::click());
+            let galley = text_galley(ui, label, semibold_font(12.0));
+            let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 22.0, 28.0), Sense::click());
             response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, selected, *label));
             let (fill, stroke, color) = if selected {
-                (MINT.gamma_multiply(0.10), LINE_BRAND, MINT)
+                (ACCENT.gamma_multiply(0.10), ACCENT.gamma_multiply(0.40), ACCENT)
             } else if response.hovered() {
-                (SURFACE, LINE_STRONG, TEXT)
+                (SURFACE_2, LINE_STRONG, TEXT)
             } else {
-                (SURFACE_SUNK, LINE, TEXT_2)
+                (SURFACE_2, LINE, MUTED)
             };
             let p = ui.painter();
-            p.rect(rect, CornerRadius::same(R_SM), fill, Stroke::new(1.0, stroke), egui::StrokeKind::Inside);
+            p.rect(rect, CornerRadius::same(255), fill, Stroke::new(1.0, stroke), egui::StrokeKind::Inside);
             p.galley(rect.center() - galley.size() / 2.0, galley, color);
-            focus_ring(ui, &response, R_SM);
+            focus_ring(ui, &response, 14);
             if response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() && !selected {
                 *value = *option;
                 changed = true;
@@ -301,9 +260,9 @@ pub fn segmented<T: PartialEq + Copy>(ui: &mut Ui, value: &mut T, options: &[(T,
     changed
 }
 
-/// `tk-switch`: 42x24, line-strong off, mint on, white knob.
+/// 36x20 switch.
 pub fn switch(ui: &mut Ui, on: &mut bool) -> Response {
-    let (rect, mut response) = ui.allocate_exact_size(vec2(42.0, 24.0), Sense::click());
+    let (rect, mut response) = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::click());
     if response.clicked() {
         *on = !*on;
         response.mark_changed();
@@ -311,21 +270,18 @@ pub fn switch(ui: &mut Ui, on: &mut bool) -> Response {
     response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, *on, ""));
     let t = ui.ctx().animate_bool_with_time(response.id, *on, 0.12);
     let p = ui.painter();
-    let track = if *on { MINT } else { LINE_STRONG };
-    p.rect_filled(rect, CornerRadius::same(12), track);
-    let knob = egui::pos2(rect.left() + 12.0 + t * 18.0, rect.center().y);
-    p.circle_filled(knob + vec2(0.0, 1.0), 9.0, Color32::from_black_alpha(100));
-    p.circle_filled(knob, 9.0, Color32::WHITE);
-    focus_ring(ui, &response, 12);
+    p.rect_filled(rect, CornerRadius::same(10), if *on { ACCENT } else { LINE_STRONG });
+    p.circle_filled(egui::pos2(rect.left() + 10.0 + t * 16.0, rect.center().y), 7.0, Color32::WHITE);
+    focus_ring(ui, &response, 10);
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
-/// Slider in the switch's language: 4px rail, mint fill up to the value, white knob.
+/// 4px rail, accent fill up to the value, white knob.
 pub fn slider(ui: &mut Ui, value: &mut u32, range: std::ops::RangeInclusive<u32>, step: u32) -> Response {
     let (lo, hi) = (*range.start(), *range.end());
-    let width = (ui.available_width() - 90.0).clamp(140.0, 420.0); // leaves room for the value label
+    let width = (ui.available_width() - 90.0).clamp(140.0, 360.0); // leaves room for the value label
     let (rect, mut response) = ui.allocate_exact_size(vec2(width, 24.0), Sense::click_and_drag());
-    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - 18.0, 4.0));
+    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - 16.0, 4.0));
 
     let mut new = *value;
     if let Some(pos) = response.interact_pointer_pos() {
@@ -352,161 +308,219 @@ pub fn slider(ui: &mut Ui, value: &mut u32, range: std::ops::RangeInclusive<u32>
     let x = rail.left() + t * rail.width();
     let p = ui.painter();
     p.rect_filled(rail, CornerRadius::same(2), LINE_STRONG);
-    p.rect_filled(Rect::from_min_max(rail.min, egui::pos2(x, rail.max.y)), CornerRadius::same(2), MINT);
+    p.rect_filled(Rect::from_min_max(rail.min, egui::pos2(x, rail.max.y)), CornerRadius::same(2), ACCENT);
     let knob = egui::pos2(x, rail.center().y);
-    p.circle_filled(knob + vec2(0.0, 1.0), 9.0, Color32::from_black_alpha(100));
-    p.circle_filled(knob, 9.0, Color32::WHITE);
+    p.circle_filled(knob, 8.0, Color32::WHITE);
     if response.has_focus() {
-        p.circle_stroke(knob, 12.0, Stroke::new(2.0, MINT));
+        p.circle_stroke(knob, 11.0, Stroke::new(2.0, ACCENT));
     }
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
-/// `tk-toggle` row: label + hint on the left, switch on the right.
-pub fn toggle_row(ui: &mut Ui, label: &str, hint: &str, on: &mut bool) -> bool {
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 2.0;
-            ui.label(RichText::new(label).font(semibold_font(14.0)).color(TEXT));
-            ui.label(RichText::new(hint).size(12.0).color(MUTED));
+// --- Page frame ---
+
+/// `.page-head`: title and one line of explanation on the left, the primary action on the right.
+pub fn page_head(ui: &mut Ui, title: &str, desc: &str, actions: impl FnOnce(&mut Ui)) {
+    let r = Frame::new().inner_margin(Margin::symmetric(PAGE_PAD, 16)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_max_width((ui.available_width() - 280.0).max(240.0));
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(strong(title, 20.0));
+                if !desc.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(desc).size(13.0).color(MUTED)).wrap());
+                }
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), actions);
         });
-        ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| switch(ui, on).changed())
-            .inner
-    })
-    .inner
+    });
+    let rect = r.response.rect;
+    ui.painter().hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, LINE));
 }
 
-// --- Containers ---
+/// `.page-body`: the page's only scroll area. `read` limits the width for settings pages.
+pub fn content(ui: &mut Ui, read: bool, add: impl FnOnce(&mut Ui)) {
+    egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+        Frame::new().inner_margin(Margin { left: PAGE_PAD, right: PAGE_PAD, top: PAGE_PAD, bottom: 40 }).show(ui, |ui| {
+            ui.set_max_width(ui.available_width().min(if read { READ_W } else { 1400.0 }));
+            ui.spacing_mut().item_spacing.y = 16.0;
+            add(ui);
+        });
+    });
+}
 
-/// Temp-data keys `grid` uses to give the cards of one row the same height.
-const CARD_MIN_H: &str = "tk_card_min_h";
-const CARD_NATURAL_H: &str = "tk_card_natural_h";
+// --- Panels and rows ---
 
-/// `tk-card`: surface, 1px line, 16px radius, 20px padding. Separated by border, not shadow.
-pub fn card<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let min_h: f32 = ui.data(|d| d.get_temp(egui::Id::new(CARD_MIN_H))).unwrap_or(0.0);
+/// `.panel`: surface, 1px line, header row with icon and title. Rows go inside (see [`row`]).
+pub fn panel<R>(ui: &mut Ui, icon: &str, title: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    panel_with(ui, icon, title, |_| {}, add)
+}
+
+/// [`panel`] with something on the right of the header (a badge, a link button).
+pub fn panel_with<R>(ui: &mut Ui, icon: &str, title: &str, right: impl FnOnce(&mut Ui), add: impl FnOnce(&mut Ui) -> R) -> R {
     Frame::new()
         .fill(SURFACE)
         .stroke(Stroke::new(1.0, LINE))
         .corner_radius(CornerRadius::same(R_LG))
-        .inner_margin(Margin::same(20))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            // Before the content: set_min_height counts from the cursor, not from the top.
-            ui.set_min_height(min_h);
-            let top = ui.cursor().top();
-            let r = add(ui);
-            let natural = ui.cursor().top() - top;
-            ui.data_mut(|d| {
-                let prev: f32 = d.get_temp(egui::Id::new(CARD_NATURAL_H)).unwrap_or(0.0);
-                d.insert_temp(egui::Id::new(CARD_NATURAL_H), prev.max(natural));
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 40.0), Layout::left_to_right(Align::Center), |ui| {
+                ui.add_space(16.0);
+                if !icon.is_empty() {
+                    ui.label(RichText::new(icon).size(15.0).color(SUBTLE));
+                }
+                ui.label(RichText::new(title).font(semibold_font(13.0)).color(MUTED));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.add_space(10.0);
+                    right(ui);
+                });
             });
-            r
+            add(ui)
         })
         .inner
 }
 
-/// Responsive card grid (`tk-field-row` / card grid): as many columns of at least `min_col`
-/// as fit, 16px gaps, cards in a row equally tall (heights settle one frame later).
-pub fn grid<S>(ui: &mut Ui, state: &mut S, min_col: f32, sections: &[fn(&mut S, &mut Ui)]) {
-    let n = (((ui.available_width() + 16.0) / (min_col + 16.0)).floor() as usize).clamp(1, sections.len().max(1));
-    let (min_key, nat_key) = (egui::Id::new(CARD_MIN_H), egui::Id::new(CARD_NATURAL_H));
-    for (ri, row) in sections.chunks(n).enumerate() {
-        let row_key = ui.id().with(("tk_grid_row", ri, n));
-        let target: f32 = if n > 1 { ui.data(|d| d.get_temp(row_key)).unwrap_or(0.0) } else { 0.0 };
-        let mut tallest = 0.0f32;
-        ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.x = 16.0;
-            ui.columns(n, |cols| {
-                for (col, section) in cols.iter_mut().zip(row) {
-                    col.data_mut(|d| {
-                        d.insert_temp(min_key, target);
-                        d.insert_temp(nat_key, 0.0f32);
-                    });
-                    // Columns are justified by default, which letter-spaces wrapped text.
-                    col.with_layout(egui::Layout::top_down(Align::Min), |ui| section(state, ui));
-                    tallest = tallest.max(col.data(|d| d.get_temp(nat_key)).unwrap_or(0.0));
-                }
-            });
-        });
-        ui.data_mut(|d| {
-            d.insert_temp(min_key, 0.0f32);
-            d.insert_temp(row_key, tallest);
-        });
-        if n > 1 && (tallest - target).abs() > 0.5 {
-            ui.ctx().request_repaint();
-        }
-        ui.add_space(16.0);
+/// A row with free content, separated from the previous one by a line.
+pub fn row_custom<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let r = Frame::new().inner_margin(Margin::symmetric(16, 12)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+        add(ui)
+    });
+    let rect = r.response.rect;
+    ui.painter().hline(rect.x_range(), rect.top(), Stroke::new(1.0, LINE));
+    r.inner
+}
+
+fn label_and_hint(ui: &mut Ui, label: &str, hint_text: &str) {
+    ui.spacing_mut().item_spacing.y = 2.0;
+    ui.add(egui::Label::new(body(label)).wrap());
+    if !hint_text.is_empty() {
+        note(ui, hint_text);
     }
 }
 
-/// Selectable tile for presets: title, mono meta line, one-line description.
-/// Selected = brand border and mint title, the same signal as a selected segment.
-pub fn choice_tile(ui: &mut Ui, selected: bool, title: &str, meta: &str, desc: &str) -> Response {
-    let mut prepared = Frame::new()
-        .inner_margin(Margin::same(14))
-        .corner_radius(CornerRadius::same(R_MD))
-        .begin(ui);
-    {
+/// Setting row: label and hint on the left, a small control (switch, chips, button) on the right.
+/// On a narrow window it stacks like [`row_wide`].
+pub fn row<R>(ui: &mut Ui, label: &str, hint_text: &str, control: impl FnOnce(&mut Ui) -> R) -> R {
+    row_custom(ui, |ui| {
+        let width = ui.available_width();
+        if width < 520.0 {
+            return stacked(ui, label, hint_text, control);
+        }
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width((width * 0.55).min(440.0));
+                label_and_hint(ui, label, hint_text);
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), control).inner
+        })
+        .inner
+    })
+}
+
+/// Setting row whose control needs width (a select, a slider, a list): control goes under the label.
+pub fn row_wide<R>(ui: &mut Ui, label: &str, hint_text: &str, control: impl FnOnce(&mut Ui) -> R) -> R {
+    row_custom(ui, |ui| stacked(ui, label, hint_text, control))
+}
+
+fn stacked<R>(ui: &mut Ui, label: &str, hint_text: &str, control: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.vertical(|ui| {
+        label_and_hint(ui, label, hint_text);
+        ui.spacing_mut().item_spacing.y = 8.0;
+        ui.add_space(2.0);
+        control(ui)
+    })
+    .inner
+}
+
+/// Row with a switch.
+pub fn toggle(ui: &mut Ui, label: &str, hint_text: &str, on: &mut bool) -> bool {
+    row(ui, label, hint_text, |ui| switch(ui, on).changed())
+}
+
+/// A clickable-looking list row (40 px+, hover tint, line above). Used for clips and attention items.
+pub fn list_item<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let mut prepared = Frame::new().inner_margin(Margin::symmetric(16, 8)).begin(ui);
+    let inner = {
         let ui = &mut prepared.content_ui;
         ui.set_width(ui.available_width());
-        ui.with_layout(egui::Layout::top_down(Align::Min), |ui| {
-            ui.spacing_mut().item_spacing.y = 4.0;
-            ui.label(display(title, 15.0).color(if selected { MINT } else { TEXT }));
-            ui.add(egui::Label::new(mono(meta, 12.0).color(TEXT_2)).wrap());
-            ui.add(egui::Label::new(RichText::new(desc).size(12.0).color(MUTED)).wrap());
-        });
-    }
-    let rect = prepared.content_ui.min_rect().expand(14.0);
-    let response = ui.interact(rect, egui::Id::new(("tk_tile", title)), Sense::click());
-    response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, selected, title));
-    let (fill, stroke) = if selected {
-        (MINT.gamma_multiply(0.06), LINE_BRAND)
-    } else if response.hovered() {
-        (SURFACE_HOVER, LINE_STRONG)
-    } else {
-        (SURFACE_SUNK, LINE)
+        ui.set_min_height(24.0);
+        ui.spacing_mut().item_spacing = vec2(8.0, 4.0);
+        add(ui)
     };
-    prepared.frame = prepared.frame.fill(fill).stroke(Stroke::new(1.0, stroke));
+    let outer = prepared.content_ui.min_rect().expand2(vec2(16.0, 8.0));
+    if ui.rect_contains_pointer(outer) {
+        prepared.frame = prepared.frame.fill(SURFACE_2);
+    }
     prepared.end(ui);
-    focus_ring(ui, &response, R_MD);
-    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+    ui.painter().hline(outer.x_range(), outer.top(), Stroke::new(1.0, LINE));
+    inner
 }
 
-pub fn card_header(ui: &mut Ui, title: &str, sub: &str) {
-    card_header_badge(ui, title, sub, None);
+/// Empty state: what is missing in one sentence, then whatever fixes it.
+pub fn empty<R>(ui: &mut Ui, text: &str, fix: impl FnOnce(&mut Ui) -> R) -> R {
+    row_custom(ui, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(12.0);
+            ui.add(egui::Label::new(RichText::new(text).size(13.0).color(MUTED)).wrap());
+            ui.add_space(4.0);
+            let r = fix(ui);
+            ui.add_space(12.0);
+            r
+        })
+        .inner
+    })
 }
 
-/// Card title with an optional badge after it (e.g. "Mukautettu", "2 kpl").
-pub fn card_header_badge(ui: &mut Ui, title: &str, sub: &str, badge_: Option<(Tone, &str)>) {
-    ui.spacing_mut().item_spacing.y = 2.0;
-    ui.scope(|ui| {
-        ui.spacing_mut().interact_size.y = 0.0; // a horizontal row is otherwise 40px tall
-        ui.horizontal(|ui| {
-            ui.label(display(title, 17.0));
-            if let Some((tone, text)) = badge_ {
-                badge(ui, tone, text);
+// --- Stat strip (ProjectHub overview) ---
+
+pub struct Stat {
+    pub value: String,
+    pub label: &'static str,
+    pub sub: String,
+    pub color: Color32,
+}
+
+/// One panel, cells separated by lines: figure, label, a short status line.
+pub fn stat_strip(ui: &mut Ui, stats: &[Stat]) {
+    let n = if ui.available_width() >= 700.0 { stats.len() } else { 2 };
+    let r = Frame::new().fill(SURFACE).stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius::same(R_LG)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        let mut line_ys = Vec::new();
+        for (ri, row) in stats.chunks(n).enumerate() {
+            if ri > 0 {
+                line_ys.push(ui.cursor().top());
             }
-        });
+            ui.columns(n, |cols| {
+                for (col, stat) in cols.iter_mut().zip(row) {
+                    Frame::new().inner_margin(Margin::symmetric(16, 14)).show(col, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.add(egui::Label::new(strong(&stat.value, 20.0)).truncate());
+                        ui.label(hint(stat.label));
+                        ui.add(egui::Label::new(RichText::new(&stat.sub).size(11.0).color(stat.color)).truncate());
+                    });
+                }
+            });
+        }
+        line_ys
     });
-    if !sub.is_empty() {
-        ui.add(egui::Label::new(RichText::new(sub).size(13.0).color(MUTED)).wrap());
+    let rect = r.response.rect;
+    let p = ui.painter();
+    for k in 1..n {
+        let x = rect.left() + rect.width() * k as f32 / n as f32;
+        p.vline(x, rect.y_range(), Stroke::new(1.0, LINE));
     }
-    ui.spacing_mut().item_spacing.y = 8.0;
-    ui.add_space(12.0);
+    for y in r.inner {
+        p.hline(rect.x_range(), y, Stroke::new(1.0, LINE));
+    }
 }
 
-/// `tk-field`: label 13/600, control, hint 12 muted.
-pub fn field<R>(ui: &mut Ui, label: &str, hint: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    ui.spacing_mut().item_spacing.y = 6.0;
-    ui.label(RichText::new(label).font(semibold_font(13.0)).color(TEXT_2));
-    let r = add(ui);
-    if !hint.is_empty() {
-        ui.label(RichText::new(hint).size(12.0).color(MUTED));
-    }
-    ui.spacing_mut().item_spacing.y = 8.0;
-    r
-}
+// --- Small things ---
 
 #[derive(Clone, Copy)]
 pub enum Tone {
@@ -520,54 +534,105 @@ pub enum Tone {
 impl Tone {
     pub fn color(self) -> Color32 {
         match self {
-            Tone::Success => MINT,
-            Tone::Warning => WARNING,
+            Tone::Success => SUCCESS,
+            Tone::Warning => WARN,
             Tone::Danger => DANGER,
-            Tone::Info => BLUE,
-            Tone::Neutral => TEXT_2,
+            Tone::Info => ACCENT,
+            Tone::Neutral => MUTED,
         }
     }
 }
 
-/// `tk-badge`: pill with tinted background. State is also in the words, never color alone.
+/// Pill with a tinted background. State is also in the words, never colour alone.
 pub fn badge(ui: &mut Ui, tone: Tone, text: &str) -> Response {
     let c = tone.color();
     let (fill, stroke) = match tone {
-        Tone::Neutral => (SURFACE, LINE_STRONG),
-        _ => (c.gamma_multiply(0.10), c.gamma_multiply(0.22)),
+        Tone::Neutral => (SURFACE_2, LINE),
+        _ => (c.gamma_multiply(0.10), c.gamma_multiply(0.25)),
     };
     // Painted, not a Frame: a Frame would stretch to the row height inside horizontal layouts.
     let galley = text_galley(ui, text, semibold_font(12.0));
-    let (rect, response) = ui.allocate_exact_size(galley.size() + vec2(20.0, 8.0), Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 18.0, 22.0), Sense::hover());
     let p = ui.painter();
     p.rect(rect, CornerRadius::same(255), fill, Stroke::new(1.0, stroke), egui::StrokeKind::Inside);
     p.galley(rect.center() - galley.size() / 2.0, galley, c);
     response
 }
 
-/// `tk-stat`: eyebrow, mono value 28px, small line below.
-pub fn stat(ui: &mut Ui, width: f32, label: &str, value: &str, sub: &str, sub_color: Color32) {
-    Frame::new()
-        .fill(SURFACE)
-        .stroke(Stroke::new(1.0, LINE))
-        .corner_radius(CornerRadius::same(R_LG))
-        .inner_margin(Margin::symmetric(20, 16))
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.set_width(width - 42.0);
-                ui.spacing_mut().item_spacing.y = 4.0;
-                eyebrow(ui, label);
-                ui.add(egui::Label::new(mono(value, 28.0).color(TEXT)).truncate());
-                ui.add(egui::Label::new(RichText::new(sub).size(12.0).color(sub_color)).truncate());
-            });
-        });
+/// A key as a small cap, e.g. Ctrl+F10.
+pub fn keycap(ui: &mut Ui, text: &str) -> Response {
+    let galley = text_galley(ui, text, mono_font(12.0));
+    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 14.0, 22.0), Sense::hover());
+    let p = ui.painter();
+    p.rect(rect, CornerRadius::same(R_SM), SURFACE_2, Stroke::new(1.0, LINE_STRONG), egui::StrokeKind::Inside);
+    p.galley(rect.center() - galley.size() / 2.0, galley, TEXT);
+    response
 }
 
-fn text_galley(ui: &Ui, text: &str, font: FontId) -> std::sync::Arc<egui::Galley> {
-    WidgetText::from(RichText::new(text).font(font)).into_galley(
-        ui,
-        Some(egui::TextWrapMode::Extend),
-        f32::INFINITY,
-        TextStyle::Button,
-    )
+/// Small coloured dot (status).
+pub fn dot(ui: &mut Ui, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+    ui.painter().circle_filled(rect.center(), 4.0, color);
+}
+
+/// Sidebar entry: 32 px, icon + label, optional count on the right. Active = surface-2.
+pub fn nav_item(ui: &mut Ui, icon: &str, label: &str, active: bool, count: Option<(Tone, &str)>) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, active, label));
+    let p = ui.painter();
+    let radius = CornerRadius::same(R_MD);
+    if active {
+        p.rect_filled(rect, radius, SURFACE_2);
+    } else if response.hovered() {
+        p.rect_filled(rect, radius, SURFACE_2.gamma_multiply(0.5));
+    }
+    let color = if active || response.hovered() { TEXT } else { MUTED };
+    p.text(rect.left_center() + vec2(10.0, 0.0), egui::Align2::LEFT_CENTER, icon, FontId::proportional(16.0), color);
+    let font = if active { semibold_font(13.0) } else { font(13.0) };
+    p.text(rect.left_center() + vec2(34.0, 0.0), egui::Align2::LEFT_CENTER, label, font, color);
+    if let Some((tone, text)) = count {
+        p.text(rect.right_center() - vec2(10.0, 0.0), egui::Align2::RIGHT_CENTER, text, font_meta(), tone.color());
+    }
+    if response.has_focus() {
+        p.rect_stroke(rect.expand(1.0), CornerRadius::same(R_MD + 1), Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
+    }
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+fn font_meta() -> FontId {
+    font(11.0)
+}
+
+/// `.section-label`: small heading above a group in the sidebar or a page.
+pub fn section_label(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).font(semibold_font(12.0)).color(SUBTLE));
+}
+
+/// Selectable tile (quality presets): title, mono meta line, one-line description.
+pub fn choice_tile(ui: &mut Ui, selected: bool, title: &str, meta_line: &str, desc: &str) -> Response {
+    let mut prepared = Frame::new().inner_margin(Margin::same(12)).corner_radius(CornerRadius::same(R_MD)).begin(ui);
+    {
+        let ui = &mut prepared.content_ui;
+        ui.set_width(ui.available_width());
+        ui.with_layout(Layout::top_down(Align::Min), |ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            ui.label(strong(title, 13.0).color(if selected { ACCENT } else { TEXT }));
+            ui.add(egui::Label::new(mono(meta_line, 11.0).color(MUTED)).wrap());
+            ui.add(egui::Label::new(meta(desc)).wrap());
+        });
+    }
+    let rect = prepared.content_ui.min_rect().expand(12.0);
+    let response = ui.interact(rect, egui::Id::new(("tk_tile", title)), Sense::click());
+    response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, selected, title));
+    let (fill, stroke) = if selected {
+        (ACCENT.gamma_multiply(0.08), ACCENT.gamma_multiply(0.45))
+    } else if response.hovered() {
+        (SURFACE_2, LINE_STRONG)
+    } else {
+        (SURFACE, LINE)
+    };
+    prepared.frame = prepared.frame.fill(fill).stroke(Stroke::new(1.0, stroke));
+    prepared.end(ui);
+    focus_ring(ui, &response, R_MD);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

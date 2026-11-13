@@ -103,8 +103,18 @@ git push origin main v0.3.0
 - `src/update.rs`, `src/manifest.rs`: automaattinen päivitys ja allekirjoitukset; `src/bin/tiksu-release.rs`: julkaisun allekirjoitustyökalu
 - `src/win.rs`: Win32-apurit: yksi instanssi, näytönohjain, prosessit, automaattinen käynnistys, roskakori
 - `src/applog.rs`: lokitiedosto
-- `src/ui.rs`, `src/tiksu.rs`: käyttöliittymä ja Tiksu-tyyli
+- `src/ui/mod.rs`: ikkuna, sivupalkki, yläpalkki, ilmoitukset ja sivurekisteri (`Page`); `src/ui/pages/`: yksi tiedosto per sivu
+- `src/tiksu.rs`: käyttöliittymän tyylijärjestelmä (värit, fontit, napit, paneelit, rivit), pohjana IT-Veljekset DESIGN.md
 - `src/config.rs`, `src/devices.rs`, `src/notification.rs`: asetukset, laitteet ja ikkunat, merkkiäänet
+
+### Uuden sivun lisääminen
+
+1. Lisää `Page`-enumiin (`src/ui/mod.rs`) uusi vaihtoehto ja täytä se kohtiin `ALL`, `label`, `icon` ja `group`. Sivupalkki ja murupolku poimivat sen taulukosta.
+2. Lisää rivi `render_page`-funktioon.
+3. Kirjoita `src/ui/pages/<nimi>.rs`: yksi `impl SillyBorgApp` -metodi, joka kutsuu `tk::page_head(...)` ja `tk::content(...)` ja rakentaa sisällön paneeleista (`tk::panel`) ja riveistä (`tk::row`, `tk::row_wide`, `tk::toggle`). Listaa tiedosto tiedostossa `src/ui/pages/mod.rs`.
+4. Kääntäjä huomauttaa jokaisesta `match`-lausekkeesta, johon uusi sivu puuttuu.
+
+Ohje-sivun kysymykset ovat datana tiedostossa `src/ui/pages/help.rs` (`FAQ`). Debug-käännöksen voi avata tiettyyn sivuun: `TIKSU_PAGE=Laatu`.
 
 ## Lisenssi
 

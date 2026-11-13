@@ -63,7 +63,6 @@ pub struct Status {
 #[derive(Debug, Clone)]
 pub struct LastClip {
     pub result: Result<PathBuf, String>,
-    pub secs: u64,
 }
 
 /// State shared between the UI, hotkeys, tray and the supervisor.
@@ -723,7 +722,7 @@ fn save_clip(done_rx: Receiver<()>, secs: u64, flags: &CaptureFlags, index: u64)
             notify(&cfg, false, "Tallennus epäonnistui", e);
         }
     }
-    *shared.last_clip.lock() = Some(LastClip { result: result.map(|_| out_path), secs });
+    *shared.last_clip.lock() = Some(LastClip { result: result.map(|_| out_path) });
     shared.saving.store(false, Ordering::SeqCst);
     shared.poke();
 }
