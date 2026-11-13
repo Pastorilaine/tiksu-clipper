@@ -21,7 +21,7 @@ const SOURCES: [&str; 2] = [
 ];
 /// Matches the release signing key (`tiksu-release keygen`). Only builds signed with it install.
 const PUBLIC_KEY: &str = "9f11973a4acc0d0fc7456d75363c03a0ab1291c98a12d610e9a0cb378fdef54d";
-pub const DOWNLOAD_PAGE: &str = "https://tiksu.fi/clipper";
+pub const DOWNLOAD_PAGE: &str = "https://github.com/Pastorilaine/tiksu-clipper/releases/latest";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
 const FIRST_CHECK: Duration = Duration::from_secs(20);
@@ -207,6 +207,13 @@ pub fn old_path(exe: &Path) -> PathBuf {
 
 /// Puts `bytes` at `exe`, moving the (possibly running) current exe aside.
 fn install(bytes: &[u8], exe: &Path) -> Result<(), String> {
+    if !exe.exists() {
+        return Err(format!(
+            "Ohjelman tiedosto on siirretty tai poistettu käynnissä ollessa ({}). Sulje sovellus ja käynnistä se uudelleen sen oikeasta sijainnista, tai lataa uusi versio: {}",
+            exe.display(),
+            DOWNLOAD_PAGE
+        ));
+    }
     let old = old_path(exe);
     let _ = std::fs::remove_file(&old);
     std::fs::rename(exe, &old).map_err(|e| {

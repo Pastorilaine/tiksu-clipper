@@ -34,6 +34,15 @@ Muistipuskurin koko on suunnilleen bittinopeus / 8 × (pisin leike + 10 s). Laat
 - Windows 10 1903 tai uudempi (mukana tulevat `curl.exe` ja `tar.exe` riittävät, muuta ei asenneta)
 - Mitään ei tarvitse ladata erikseen. Jos `ffmpeg` ja `ffprobe` puuttuvat, sovellus lataa kerran valmiin version (noin 35 Mt, SHA-256-tarkistuksella) kansioon `%LOCALAPPDATA%\TiksuClipper\ffmpeg`. Puskuri kuvaa jo latauksen aikana. Jos `ffmpeg.exe` on `silly-borg.exe`:n vieressä tai PATHissa, sitä käytetään sellaisenaan.
 
+## Asennus
+
+Lataa `TiksuClipper-Setup.exe` [julkaisusivulta](https://github.com/Pastorilaine/tiksu-clipper/releases/latest) ja aja se. Admin-oikeuksia ei tarvita.
+
+- Asentuu kansioon `%LOCALAPPDATA%\Programs\TiksuClipper`, ja Käynnistä-valikkoon tulee pikakuvake (työpöydälle valinnaisesti).
+- Sovelluksen oma päivitys toimii asennetussa kansiossa. Uusi asennusohjelma päivittää vanhan asennuksen paikallaan.
+- Poisto: Windowsin asetukset, Sovellukset. Poisto jättää asetukset ja leikkeet paikoilleen (`%APPDATA%\SillyBorg`, leikekansio).
+- Pelkkä `TiksuClipper.exe` toimii myös ilman asennusta, mutta älä siirrä tai poista sitä käynnissä ollessa, sillä muuten päivitys ei onnistu.
+
 ## Ajaminen
 
 ```powershell
@@ -64,11 +73,11 @@ git tag -a v0.3.0 -m "Mitä uutta tässä versiossa"   # viesti = päivityksen m
 git push origin main v0.3.0
 ```
 
-`.github/workflows/release.yml` ajaa testit, kääntää, allekirjoittaa ja luo GitHub-julkaisun, jossa on tiedostot `TiksuClipper.exe` ja `latest.json`. Se tarvitsee repoon secretin `TIKSU_SIGNING_KEY`, jonka arvo on avaintiedoston sisältö.
+`.github/workflows/release.yml` ajaa testit, kääntää, allekirjoittaa ja luo GitHub-julkaisun, jossa on tiedostot `TiksuClipper.exe` (päivityksille), `TiksuClipper-Setup.exe` (asennusohjelma, skripti `installer/TiksuClipper.iss`, Inno Setup) ja `latest.json`. Se tarvitsee repoon secretin `TIKSU_SIGNING_KEY`, jonka arvo on avaintiedoston sisältö.
 
 ### tiksu.fi
 
-- **Latauslinkki**, joka osoittaa aina uusimpaan versioon: `https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/TiksuClipper.exe`
+- **Latauslinkki**, joka osoittaa aina uusimpaan versioon: `https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/TiksuClipper-Setup.exe`
 - **Päivityslähde:** kopioi julkaisun `latest.json` osoitteeseen `https://tiksu.fi/clipper/latest.json`. Jos haluat jakaa myös exen tiksu.fi:stä, kopioi se ja vaihda `latest.json`:n `url`. Allekirjoitus pysyy voimassa, koska se ei koske URL:ia.
 
 ### Allekirjoitusavain

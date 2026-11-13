@@ -57,10 +57,20 @@ jobs:
             --notes-file notes.txt `
             --out latest.json
 
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          $tag = "${{ github.ref_name }}"
+          & $iscc /Q "/DAppVersion=$($tag.TrimStart('v'))" installer/TiksuClipper.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          if (-not (Test-Path TiksuClipper-Setup.exe)) { throw "TiksuClipper-Setup.exe missing" }
+
       - name: Publish
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          gh release create $tag TiksuClipper.exe latest.json --title "Tiksu Clipper $tag" --notes-file notes.txt
+          gh release create $tag TiksuClipper.exe TiksuClipper-Setup.exe latest.json --title "Tiksu Clipper $tag" --notes-file notes.txt

@@ -1,3 +1,6 @@
 /target
 # Release signing key never goes into the repo.
 *.key
+/TiksuClipper.exe
+/TiksuClipper-Setup.exe
+/latest.json
