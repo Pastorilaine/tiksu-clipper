@@ -1676,6 +1676,7 @@ fn handle_tray(app: &mut SillyBorgApp, ctx: &egui::Context) {
                 app.quitting = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+            TrayAction::Update => app.restart_for_update(ctx),
             TrayAction::SaveClip => {} // handled on the tray thread
         }
     }
@@ -1711,6 +1712,15 @@ impl eframe::App for SillyBorgApp {
 
         let update_state = self.updater.state();
         if update_state != self.last_update_state {
+            if let UpdateState::Installed(m) = &update_state {
+                // The window may be hidden in the tray for weeks: say so there, and offer the restart in the menu.
+                if let Some(tray) = &self.tray {
+                    tray.set_update(Some(&m.version));
+                }
+                if self.hidden {
+                    crate::overlay::show(&format!("Päivitys {} asennettu", m.version), "Käynnistä uudelleen ilmaisinalueen valikosta", true);
+                }
+            }
             match &update_state {
                 UpdateState::Installed(m) => self.notify(ctx, Tone::Success, format!("Päivitys {} asennettu. Se otetaan käyttöön seuraavalla käynnistyksellä.", m.version)),
                 UpdateState::Available(m) => self.notify(ctx, Tone::Info, format!("Uusi versio {} saatavilla. Katso Sovellus-sivu.", m.version)),

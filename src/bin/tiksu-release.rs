@@ -4,6 +4,9 @@
 //!       Creates a signing key (keep it secret, back it up) and prints the public key
 //!       that goes into `PUBLIC_KEY` in src/update.rs.
 //!
+//!   tiksu-release verify --exe <file> --manifest <latest.json> --public-key <hex>
+//!       Checks a published exe against its manifest (e.g. after a release).
+//!
 //!   tiksu-release sign --exe <file> --version <x.y.z> --url <download url> [--notes-file <file>] [--key <file>] --out <latest.json>
 //!       Signs the exe and writes the update manifest. The key comes from --key or the
 //!       TIKSU_SIGNING_KEY environment variable (hex), e.g. a GitHub Actions secret.
@@ -19,6 +22,7 @@ fn main() {
     let result = match args.first().map(String::as_str) {
         Some("keygen") => keygen(args.get(1)),
         Some("sign") => sign(&args[1..]),
+        Some("verify") => verify(&args[1..]),
         _ => Err("käyttö: tiksu-release keygen <tiedosto> | sign --exe .. --version .. --url .. --out ..".to_string()),
     };
     if let Err(e) = result {
@@ -78,5 +82,16 @@ fn sign(args: &[String]) -> Result<(), String> {
     let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
     std::fs::write(out, json).map_err(|e| format!("{}: {}", out, e))?;
     println!("{} {} allekirjoitettu (julkinen avain {})", exe_path, manifest.version, public);
+    Ok(())
+}
+
+fn verify(args: &[String]) -> Result<(), String> {
+    let need = |name| arg(args, name).ok_or(format!("{} puuttuu", name));
+    let (exe_path, manifest_path, public) = (need("--exe")?, need("--manifest")?, need("--public-key")?);
+    let exe = std::fs::read(exe_path).map_err(|e| format!("{}: {}", exe_path, e))?;
+    let json = std::fs::read_to_string(manifest_path).map_err(|e| format!("{}: {}", manifest_path, e))?;
+    let manifest: Manifest = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    manifest::verify(&manifest, &exe, public)?;
+    println!("{} on aito versio {}", exe_path, manifest.version);
     Ok(())
 }

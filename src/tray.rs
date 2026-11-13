@@ -10,12 +10,14 @@ pub enum TrayAction {
     Show,
     SaveClip,
     OpenFolder,
+    Update,
     Quit,
 }
 
 pub struct TrayManager {
     _tray_icon: TrayIcon,
     save_item: MenuItem,
+    update_item: MenuItem,
 }
 
 /// 32x32 RGBA icon: mint ring with a dot, the Tiksu record mark.
@@ -41,12 +43,14 @@ impl TrayManager {
         let show_item = MenuItem::new("Avaa Tiksu Clipper", true, None);
         let save_item = MenuItem::new(format!("Tallenna leike ({})", hotkey), true, None);
         let folder_item = MenuItem::new("Avaa leikekansio", true, None);
+        let update_item = MenuItem::new("Ei päivityksiä", false, None);
         let quit_item = MenuItem::new("Lopeta", true, None);
         menu.append_items(&[
             &show_item,
             &PredefinedMenuItem::separator(),
             &save_item,
             &folder_item,
+            &update_item,
             &PredefinedMenuItem::separator(),
             &quit_item,
         ])
@@ -56,6 +60,7 @@ impl TrayManager {
             (show_item.id().clone(), TrayAction::Show),
             (save_item.id().clone(), TrayAction::SaveClip),
             (folder_item.id().clone(), TrayAction::OpenFolder),
+            (update_item.id().clone(), TrayAction::Update),
             (quit_item.id().clone(), TrayAction::Quit),
         ];
         let on_action = Arc::new(on_action);
@@ -80,10 +85,26 @@ impl TrayManager {
             .build()
             .map_err(|e| e.to_string())?;
 
-        Ok(Self { _tray_icon: tray_icon, save_item })
+        Ok(Self { _tray_icon: tray_icon, save_item, update_item })
     }
 
     pub fn set_hotkey(&self, hotkey: &str) {
         self.save_item.set_text(format!("Tallenna leike ({})", hotkey));
+    }
+}
+
+impl TrayManager {
+    /// Menu entry that restarts into an installed update; `None` greys it out again.
+    pub fn set_update(&self, version: Option<&str>) {
+        match version {
+            Some(v) => {
+                self.update_item.set_text(format!("Käynnistä uudelleen: päivitys {}", v));
+                self.update_item.set_enabled(true);
+            }
+            None => {
+                self.update_item.set_text("Ei päivityksiä");
+                self.update_item.set_enabled(false);
+            }
+        }
     }
 }

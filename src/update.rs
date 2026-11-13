@@ -26,6 +26,7 @@ pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
 const FIRST_CHECK: Duration = Duration::from_secs(20);
 const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
+const RETRY_AFTER_FAILURE: Duration = Duration::from_secs(15 * 60);
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,10 +62,11 @@ impl Updater {
         std::thread::spawn(move || {
             std::thread::sleep(FIRST_CHECK);
             loop {
-                if bg.auto.load(Ordering::SeqCst) {
-                    bg.run(true);
-                }
-                std::thread::sleep(CHECK_EVERY);
+                // With automatic install off it still checks, so the app can tell about the new version.
+                bg.run(bg.auto.load(Ordering::SeqCst));
+                // A failed check (offline after wake-up, GitHub hiccup) is retried soon, not in 6 hours.
+                let wait = if matches!(bg.state(), UpdateState::Failed(_)) { RETRY_AFTER_FAILURE } else { CHECK_EVERY };
+                std::thread::sleep(wait);
             }
         });
         updater
@@ -135,7 +137,9 @@ impl Updater {
 
 /// Downloads `url` with Windows' own curl.exe (TLS and redirects via the OS; no extra crates).
 fn fetch(url: &str, to: Option<&Path>) -> Result<Vec<u8>, String> {
-    let mut cmd = Command::new("curl.exe");
+    // The system's curl, not whatever curl.exe sits next to our exe (often the Downloads folder).
+    let system_curl = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("curl.exe"));
+    let mut cmd = Command::new(system_curl.filter(|p| p.exists()).unwrap_or_else(|| PathBuf::from("curl.exe")));
     cmd.creation_flags(CREATE_NO_WINDOW)
         .args(["-fsSL", "--retry", "2", "--max-time", if to.is_some() { "600" } else { "20" }])
         .args(["-A", &format!("TiksuClipper/{}", CURRENT)]);
