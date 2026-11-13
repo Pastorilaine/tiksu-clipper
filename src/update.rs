@@ -135,14 +135,20 @@ impl Updater {
     }
 }
 
-/// Downloads `url` with Windows' own curl.exe (TLS and redirects via the OS; no extra crates).
-fn fetch(url: &str, to: Option<&Path>) -> Result<Vec<u8>, String> {
-    // The system's curl, not whatever curl.exe sits next to our exe (often the Downloads folder).
+/// The system's curl (TLS and redirects via the OS), not whatever curl.exe sits next to our exe
+/// (often the Downloads folder). `max_time` is in seconds.
+pub fn curl(max_time: &str) -> Command {
     let system_curl = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("curl.exe"));
     let mut cmd = Command::new(system_curl.filter(|p| p.exists()).unwrap_or_else(|| PathBuf::from("curl.exe")));
     cmd.creation_flags(CREATE_NO_WINDOW)
-        .args(["-fsSL", "--retry", "2", "--max-time", if to.is_some() { "600" } else { "20" }])
+        .args(["-fsSL", "--retry", "2", "--max-time", max_time])
         .args(["-A", &format!("TiksuClipper/{}", CURRENT)]);
+    cmd
+}
+
+/// Downloads `url` with [`curl`]; into `to` if given, else returns the body.
+fn fetch(url: &str, to: Option<&Path>) -> Result<Vec<u8>, String> {
+    let mut cmd = curl(if to.is_some() { "600" } else { "20" });
     if let Some(to) = to {
         cmd.arg("-o").arg(to);
     }

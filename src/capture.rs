@@ -111,6 +111,15 @@ impl Shared {
         self.enabled.load(Ordering::SeqCst)
     }
 
+    /// Downloads ffmpeg in the background if it is missing (see `ffmpeg.rs`).
+    pub fn ensure_ffmpeg(self: &Arc<Self>) {
+        let me = self.clone();
+        crate::ffmpeg::install(move |ok| {
+            me.status.lock().ffmpeg_ok = ok;
+            me.poke();
+        });
+    }
+
     /// `secs == 0` saves the main clip length.
     pub fn save_clip(&self, secs: u64) {
         let _ = self.trigger_tx.send(secs);
@@ -232,10 +241,12 @@ impl Supervisor {
         let _ = std::fs::create_dir_all(&temp_dir);
 
         let ffmpeg_ok = ffmpeg_available();
-        if !ffmpeg_ok {
-            println!("ffmpeg puuttuu: leikkeitä ei voi tallentaa");
-        }
         shared.status.lock().ffmpeg_ok = ffmpeg_ok;
+        if !ffmpeg_ok {
+            // The replay buffer already runs; clips can be saved once the download is done.
+            println!("ffmpeg puuttuu, ladataan");
+            shared.ensure_ffmpeg();
+        }
 
         Self {
             shared,
@@ -693,7 +704,12 @@ fn save_clip(done_rx: Receiver<()>, secs: u64, flags: &CaptureFlags, index: u64)
     let out_name = out_path.file_name().unwrap_or_default().to_string_lossy().to_string();
     let work_dir = flags.temp_dir.join(format!("save_{}", index));
 
-    let result = write_clip(&shared.ring.last_segments(secs as f64), &flags.tap, &cfg, &work_dir, &out_path);
+    let result = if shared.status.lock().ffmpeg_ok {
+        write_clip(&shared.ring.last_segments(secs as f64), &flags.tap, &cfg, &work_dir, &out_path)
+    } else {
+        // The buffer keeps recording, so pressing the key again in a moment works.
+        Err("ffmpeg latautuu vielä. Yritä hetken kuluttua uudelleen.".to_string())
+    };
     let _ = std::fs::remove_dir_all(&work_dir);
 
     match &result {

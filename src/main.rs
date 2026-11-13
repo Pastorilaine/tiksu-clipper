@@ -17,6 +17,7 @@ mod buffer;
 mod capture;
 mod config;
 mod devices;
+mod ffmpeg;
 mod hotkey;
 mod library;
 mod muxer;

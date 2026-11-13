@@ -31,8 +31,8 @@ Muistipuskurin koko on suunnilleen bittinopeus / 8 × (pisin leike + 10 s). Laat
 
 ## Vaatimukset
 
-- Windows 10 1903 tai uudempi
-- `ffmpeg` ja `ffprobe` PATHissa tai `silly-borg.exe`:n vieressä (`winget install Gyan.FFmpeg`)
+- Windows 10 1903 tai uudempi (mukana tulevat `curl.exe` ja `tar.exe` riittävät, muuta ei asenneta)
+- Mitään ei tarvitse ladata erikseen. Jos `ffmpeg` ja `ffprobe` puuttuvat, sovellus lataa kerran valmiin version (noin 35 Mt, SHA-256-tarkistuksella) kansioon `%LOCALAPPDATA%\TiksuClipper\ffmpeg`. Puskuri kuvaa jo latauksen aikana. Jos `ffmpeg.exe` on `silly-borg.exe`:n vieressä tai PATHissa, sitä käytetään sellaisenaan.
 
 ## Ajaminen
 
@@ -86,6 +86,7 @@ git push origin main v0.3.0
 - `src/audio.rs`: WASAPI-kaappaus, työpöytä- ja mikrofoniväylät kellosynkronoituina rengaspuskureina
 - `src/buffer.rs`: videosegmenttien rengaspuskuri (muisti tai levy)
 - `src/muxer.rs`: ffmpeg-ajot: yhdistäminen, trimmaus, pikkukuvat ja kestot
+- `src/ffmpeg.rs`: lataa ffmpegin ensikäynnistyksellä (kiinnitetty versio, SHA-256)
 - `src/library.rs`: leikekirjasto ja taustatyöntekijä pikkukuville
 - `src/hotkey.rs`: globaalit pikanäppäimet
 - `src/tray.rs`: ilmaisinalueen kuvake ja valikko
@@ -95,6 +96,15 @@ git push origin main v0.3.0
 - `src/applog.rs`: lokitiedosto
 - `src/ui.rs`, `src/tiksu.rs`: käyttöliittymä ja Tiksu-tyyli
 - `src/config.rs`, `src/devices.rs`, `src/notification.rs`: asetukset, laitteet ja ikkunat, merkkiäänet
+
+## Lisenssi
+
+Tiksu Clipper on avointa lähdekoodia [MIT-lisenssillä](LICENSE). Koodia saa käyttää, muokata ja jakaa vapaasti.
+
+Kolmannen osapuolen osat:
+- Rust-kirjastot (`Cargo.lock`) ovat pääosin MIT- ja Apache-2.0-lisensoituja.
+- `assets/fonts`: fontit SIL Open Font License -lisenssillä (`assets/fonts/OFL.txt`).
+- **FFmpeg** ei kuulu tähän ohjelmistoon. Sovellus lataa ja ajaa sen erillisenä ohjelmana ([Gyan.dev-build](https://github.com/GyanD/codexffmpeg/releases), GPL). Tiksu Clipper ei sisällytä sitä itseensä eikä linkitä siihen.
 
 ## Testit
 

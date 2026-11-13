@@ -10,12 +10,13 @@ use crate::buffer::{SegmentData, SegmentInfo};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// `ffmpeg.exe` next to our exe wins (portable install), otherwise whatever is on PATH.
+/// `ffmpeg.exe` next to our exe wins (portable install), then the copy the app downloaded itself,
+/// otherwise whatever is on PATH.
 fn tool(name: &str) -> Command {
-    let local = std::env::current_exe()
-        .ok()
-        .and_then(|exe| Some(exe.parent()?.join(format!("{}.exe", name))))
-        .filter(|p| p.exists());
+    let file = format!("{}.exe", name);
+    let beside_exe = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join(&file)));
+    let downloaded = crate::ffmpeg::tool_dir().map(|dir| dir.join(&file));
+    let local = [beside_exe, downloaded].into_iter().flatten().find(|p| p.exists());
     let mut cmd = Command::new(local.unwrap_or_else(|| PathBuf::from(name)));
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd

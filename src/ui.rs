@@ -125,7 +125,9 @@ struct Toast {
 /// What fixes a problem listed on the overview.
 enum Fix {
     Open(Page),
-    InstallFfmpeg,
+    RetryFfmpeg,
+    /// Nothing to press: it fixes itself (e.g. a download in progress).
+    Wait,
     RestartForUpdate,
 }
 
@@ -525,10 +527,16 @@ impl SillyBorgApp {
         let status = self.shared.status.lock().clone();
         let mut problems: Vec<(String, Fix)> = Vec::new();
         if !status.ffmpeg_ok {
-            problems.push((
-                "ffmpeg puuttuu, joten leikkeitä ei voi tallentaa. Asenna se tai kopioi ffmpeg.exe ja ffprobe.exe Tiksu Clipperin viereen.".to_string(),
-                Fix::InstallFfmpeg,
-            ));
+            use crate::ffmpeg::Setup;
+            problems.push(match crate::ffmpeg::state() {
+                Setup::Downloading(pct) => (
+                    format!("Ladataan leikkeiden tallennukseen tarvittavaa ffmpegiä ({} %). Se tehdään vain kerran, puskuri kuvaa jo.", pct),
+                    Fix::Wait,
+                ),
+                Setup::Unpacking => ("Puretaan ffmpegiä…".to_string(), Fix::Wait),
+                Setup::Failed(e) => (format!("ffmpegin lataus epäonnistui: {}", e), Fix::RetryFfmpeg),
+                Setup::Idle => ("ffmpeg puuttuu, joten leikkeitä ei voi tallentaa.".to_string(), Fix::RetryFfmpeg),
+            });
         }
         if let RunState::Failed(e) = &status.state {
             problems.push((e.clone(), Fix::Open(Page::Source)));
@@ -575,13 +583,13 @@ impl SillyBorgApp {
                             self.restart_for_update(&ctx);
                         }
                     }
-                    Fix::InstallFfmpeg => {
-                        if tk::button(ui, Kind::Secondary, Size::Sm, "Asenna ffmpeg (winget)", true).clicked() {
-                            // A visible console, so the user sees the install and can cancel it.
-                            let _ = std::process::Command::new("cmd")
-                                .args(["/C", "start", "cmd", "/K", "winget install --id Gyan.FFmpeg -e"])
-                                .spawn();
+                    Fix::RetryFfmpeg => {
+                        if tk::button(ui, Kind::Primary, Size::Sm, "Lataa ffmpeg", true).clicked() {
+                            self.shared.ensure_ffmpeg();
                         }
+                    }
+                    Fix::Wait => {
+                        ui.add(egui::Spinner::new().color(tk::MINT));
                     }
                 }
             }
