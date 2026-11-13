@@ -289,7 +289,7 @@ fn capture_loop(capture: &AudioCaptureClient, event: &Handle, tap: &AudioTap, bu
             } else {
                 samples.extend(
                     bytes[..read * CHANNELS * 4]
-                        .chunks_exact(4)
+                        .as_chunks::<4>().0.iter()
                         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
                 );
             }
@@ -301,11 +301,10 @@ fn capture_loop(capture: &AudioCaptureClient, event: &Handle, tap: &AudioTap, bu
             };
             let mut at = frame_at(ts);
             // Keep packets contiguous unless the clock really jumped (>20 ms): timestamp jitter would click.
-            if let Some(expected) = next_frame {
-                if (at - expected).abs() < SAMPLE_RATE / 50 {
+            if let Some(expected) = next_frame
+                && (at - expected).abs() < SAMPLE_RATE / 50 {
                     at = expected;
                 }
-            }
             next_frame = Some(at + read as i64);
             tap.mix(bus, at, &samples);
         }
@@ -314,11 +313,10 @@ fn capture_loop(capture: &AudioCaptureClient, event: &Handle, tap: &AudioTap, bu
 
 fn find_device(dir: &Direction, name: &str) -> Result<wasapi::Device, wasapi::WasapiError> {
     let enumerator = DeviceEnumerator::new()?;
-    if name != DEFAULT_DEVICE {
-        if let Ok(dev) = enumerator.get_device_collection(dir)?.get_device_with_name(name) {
+    if name != DEFAULT_DEVICE
+        && let Ok(dev) = enumerator.get_device_collection(dir)?.get_device_with_name(name) {
             return Ok(dev);
         }
-    }
     enumerator.get_default_device(dir)
 }
 
@@ -397,7 +395,7 @@ mod tests {
             // From one frame before the data to one frame after the desktop audio: 3 frames.
             tap.write_wav(hns_of(47_999), hns_of(48_002), track, &path).unwrap();
             let bytes = std::fs::read(&path).unwrap();
-            bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect::<Vec<i16>>()
+            bytes[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes([b[0], b[1]])).collect::<Vec<i16>>()
         };
         let (half, quarter) = ((0.5 * i16::MAX as f32) as i16, (0.25 * i16::MAX as f32) as i16);
         assert_eq!(pcm_of(Track::Only(Bus::Desktop)), [0, 0, half, half, 0, 0]);
@@ -409,6 +407,7 @@ mod tests {
     /// Manual check against real hardware: `cargo test -- --ignored --nocapture`
     #[test]
     #[ignore]
+    #[allow(clippy::field_reassign_with_default)]
     fn captures_default_output_and_mic() {
         let mut cfg = AppConfig::default();
         cfg.record_microphone = true;
@@ -422,12 +421,13 @@ mod tests {
         let peak = ring.samples.iter().map(|s| s.unsigned_abs()).max().unwrap_or(0);
         let report = format!("len={} lag_ms={} peak={}", ring.samples.len(), lag_ms, peak);
         let _ = std::fs::write(std::env::temp_dir().join("silly_borg_audio.txt"), &report);
-        assert!(ring.samples.len() > 0 && (-100..500).contains(&lag_ms), "{}", report);
+        assert!(!ring.samples.is_empty() && (-100..500).contains(&lag_ms), "{}", report);
     }
 
     /// Manual: `SILLYBORG_TEST_APP=Discord.exe cargo test app_loopback -- --ignored`
     #[test]
     #[ignore]
+    #[allow(clippy::field_reassign_with_default)]
     fn app_loopback_opens() {
         let mut cfg = AppConfig::default();
         cfg.desktop_audio = DesktopAudioMode::Application;

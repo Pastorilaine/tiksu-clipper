@@ -80,6 +80,8 @@ pub struct Shared {
     pub status: Mutex<Status>,
     pub ring: RingBufferManager,
     pub saving: AtomicBool,
+    /// Set when a capture worker thread panicked; the supervisor then restarts the session.
+    worker_failed: AtomicBool,
     pub last_clip: Mutex<Option<LastClip>>,
     /// Bumped after every successful save, so the clip library knows to rescan.
     pub clips_saved: AtomicU64,
@@ -128,6 +130,15 @@ impl Shared {
         }
     }
 
+    /// Runs a worker thread body; a panic is logged and makes the supervisor restart the session,
+    /// instead of leaving the UI saying "running" while nothing records.
+    fn guarded(&self, what: &str, f: impl FnOnce()) {
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
+            println!("{} kaatui, puskuri käynnistetään uudelleen", what);
+            self.worker_failed.store(true, Ordering::SeqCst);
+        }
+    }
+
     /// Updates the status; wakes the UI only if something actually changed.
     fn set_status(&self, f: impl FnOnce(&mut Status)) {
         let changed = {
@@ -164,6 +175,7 @@ pub fn spawn(config: AppConfig) -> (Arc<Shared>, JoinHandle<()>) {
             ffmpeg_ok: true,
         }),
         saving: AtomicBool::new(false),
+        worker_failed: AtomicBool::new(false),
         last_clip: Mutex::new(None),
         clips_saved: AtomicU64::new(0),
         repaint: OnceLock::new(),
@@ -242,7 +254,18 @@ impl Supervisor {
 
     fn run(mut self, wake_rx: Receiver<()>) {
         while !self.shared.quit.load(Ordering::SeqCst) {
-            self.step();
+            let shared = self.shared.clone();
+            shared.guarded("Valvoja", || self.step());
+            if shared.worker_failed.swap(false, Ordering::SeqCst) {
+                // Drop everything so the next tick starts from scratch; the retry pause stops a crash loop.
+                self.stop_session();
+                self.audio = None;
+                self.audio_cfg = None;
+                self.shared.ring.clear_and_delete_all();
+                let effective = self.shared.live_config();
+                self.failed = Some((effective, Instant::now()));
+                self.shared.set_status(|s| s.state = RunState::Failed("Sisäinen virhe, puskuri käynnistyy uudelleen".to_string()));
+            }
             match wake_rx.recv_timeout(Duration::from_millis(500)) {
                 Ok(()) | Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => break,
@@ -542,15 +565,18 @@ impl GraphicsCaptureApiHandler for ReplayCaptureSession {
             let ring = flags.shared.ring.clone();
             // Segments finishing after the buffer was cleared for a new session are dropped by generation.
             let generation = ring.generation();
+            let shared = flags.shared.clone();
             thread::spawn(move || {
-                while let Ok((seg, end_hns, done)) = finish_rx.recv() {
-                    if let Some(info) = seg.finish(end_hns) {
-                        ring.add_segment(info, generation);
+                shared.guarded("Segmenttien viimeistely", || {
+                    while let Ok((seg, end_hns, done)) = finish_rx.recv() {
+                        if let Some(info) = seg.finish(end_hns) {
+                            ring.add_segment(info, generation);
+                        }
+                        if let Some(done) = done {
+                            let _ = done.send(());
+                        }
                     }
-                    if let Some(done) = done {
-                        let _ = done.send(());
-                    }
-                }
+                })
             });
         }
 
@@ -559,7 +585,8 @@ impl GraphicsCaptureApiHandler for ReplayCaptureSession {
         {
             let current = current.clone();
             let alive = alive.clone();
-            thread::spawn(move || {
+            let shared = flags.shared.clone();
+            thread::spawn(move || shared.guarded("Ajastin", move || {
                 let seg_hns = flags.config.segment_duration_secs.max(1) as i64 * HNS_PER_SEC;
                 let mut index = 0u64;
                 let mut pending: Option<u64> = None;
@@ -593,12 +620,17 @@ impl GraphicsCaptureApiHandler for ReplayCaptureSession {
                     let done = pending.take().map(|secs| {
                         let (done_tx, done_rx) = channel();
                         let flags = flags.clone();
-                        thread::spawn(move || save_clip(done_rx, secs, &flags, index));
+                        thread::spawn(move || {
+                            let shared = flags.shared.clone();
+                            shared.guarded("Tallennus", || save_clip(done_rx, secs, &flags, index));
+                            // A panic must not leave the "saving" spinner on forever.
+                            shared.saving.store(false, Ordering::SeqCst);
+                        });
                         done_tx
                     });
                     let _ = finish_tx.send((old, end_hns, done));
                 }
-            });
+            }));
         }
 
         Ok(Self { current, alive })
@@ -652,8 +684,13 @@ fn save_clip(done_rx: Receiver<()>, secs: u64, flags: &CaptureFlags, index: u64)
         .as_deref()
         .and_then(|exe| Path::new(exe).file_stem().map(|s| s.to_string_lossy().to_string()))
         .unwrap_or_else(|| "clip".to_string());
-    let out_name = format!("{}_{}.mp4", prefix, Local::now().format("%Y-%m-%d_%H-%M-%S"));
-    let out_path = cfg.output_dir.join(&out_name);
+    let stamp = format!("{}_{}", prefix, Local::now().format("%Y-%m-%d_%H-%M-%S"));
+    // Two saves within the same second must not overwrite each other (ffmpeg runs with -y).
+    let out_path = (1..)
+        .map(|n| cfg.output_dir.join(if n == 1 { format!("{}.mp4", stamp) } else { format!("{}_{}.mp4", stamp, n) }))
+        .find(|p| !p.exists())
+        .unwrap();
+    let out_name = out_path.file_name().unwrap_or_default().to_string_lossy().to_string();
     let work_dir = flags.temp_dir.join(format!("save_{}", index));
 
     let result = write_clip(&shared.ring.last_segments(secs as f64), &flags.tap, &cfg, &work_dir, &out_path);
@@ -680,6 +717,21 @@ fn write_clip(segments: &[SegmentInfo], tap: &AudioTap, cfg: &AppConfig, work_di
         (Some(f), Some(l)) => (f.start_hns, l.end_hns),
         _ => return Err("Puskurissa ei ole vielä kuvaa tallennettavaksi".to_string()),
     };
+    // Fail early with a readable message instead of a half-written clip. The final MP4 is about as
+    // big as the video segments; memory segments and the WAVs also pass through the temp drive.
+    let video_bytes: u64 = segments
+        .iter()
+        .map(|s| match &s.data {
+            SegmentData::Memory(b) => b.len() as u64,
+            SegmentData::File(p) => std::fs::metadata(p).map_or(0, |m| m.len()),
+        })
+        .sum();
+    let wav_bytes = (last - first).max(0) as u64 / HNS_PER_SEC as u64 * 48_000 * 4 * 3;
+    for (dir, need) in [(out.parent().unwrap_or(work_dir), video_bytes + 20_000_000), (work_dir, video_bytes + wav_bytes)] {
+        if let Some(free) = crate::win::free_disk_bytes(dir).filter(|free| *free < need) {
+            return Err(format!("Levyllä ei ole tarpeeksi tilaa ({} Mt vapaana, {} Mt tarvitaan)", free / 1_000_000, need / 1_000_000));
+        }
+    }
     std::fs::create_dir_all(work_dir).map_err(|e| e.to_string())?;
 
     // ffmpeg reads files: write in-memory segments out (only now, at save time).
@@ -723,6 +775,7 @@ mod tests {
     /// `cargo test end_to_end -- --ignored`
     #[test]
     #[ignore]
+    #[allow(clippy::field_reassign_with_default)]
     fn end_to_end_clip_has_video_and_audio_tracks() {
         let out_dir = std::env::temp_dir().join("silly_borg_e2e");
         let _ = std::fs::remove_dir_all(&out_dir);

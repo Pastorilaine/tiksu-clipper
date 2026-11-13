@@ -52,7 +52,8 @@ fn concat_list(segments: &[SegmentInfo]) -> String {
     for (i, seg) in segments.iter().enumerate() {
         let until = segments.get(i + 1).map_or(seg.end_hns, |next| next.start_hns);
         let duration = (until - seg.start_hns) as f64 / HNS_PER_SEC as f64;
-        let path = seg_path(seg).to_string_lossy().replace('\\', "/");
+        // Inside single quotes a literal ' is written as '\'' (e.g. a user profile named O'Brien).
+        let path = seg_path(seg).to_string_lossy().replace('\\', "/").replace('\'', "'\\''");
         list.push_str(&format!("file '{}'\nduration {:.6}\n", path, duration));
     }
     list
@@ -151,6 +152,12 @@ mod tests {
         // Segment b had no frames for 2 s after a's rotation: a's frozen frame covers the gap.
         let list = concat_list(&[seg("a.mp4", 0, 10), seg("b.mp4", 12, 20)]);
         assert_eq!(list, "file 'a.mp4'\nduration 12.000000\nfile 'b.mp4'\nduration 8.000000\n");
+    }
+
+    #[test]
+    fn apostrophe_in_path_is_escaped() {
+        let seg = SegmentInfo { data: SegmentData::File(r"C:\Users\O'Brien\a.mp4".into()), start_hns: 0, end_hns: HNS_PER_SEC };
+        assert_eq!(concat_list(&[seg]), "file 'C:/Users/O'\\''Brien/a.mp4'\nduration 1.000000\n");
     }
 }
 

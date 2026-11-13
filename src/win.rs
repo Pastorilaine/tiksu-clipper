@@ -90,6 +90,24 @@ pub fn processes() -> Vec<(u32, u32, String)> {
     procs
 }
 
+/// Free bytes on the drive holding `path` (the nearest existing parent is used).
+pub fn free_disk_bytes(path: &Path) -> Option<u64> {
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+    let dir = path.ancestors().find(|p| p.exists())?;
+    let wide_dir = wide(&dir.to_string_lossy());
+    let mut free = 0u64;
+    let ok = unsafe { GetDiskFreeSpaceExW(wide_dir.as_ptr(), &mut free, std::ptr::null_mut(), std::ptr::null_mut()) };
+    (ok != 0).then_some(free)
+}
+
+/// Physical memory currently available, in bytes.
+pub fn available_ram_bytes() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+    status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+    (unsafe { GlobalMemoryStatusEx(&mut status) } != 0).then_some(status.ullAvailPhys)
+}
+
 const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const RUN_VALUE: &str = "TiksuClipper";
 

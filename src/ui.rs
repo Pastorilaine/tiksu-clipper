@@ -166,6 +166,9 @@ pub struct SillyBorgApp {
     show_requested: Arc<AtomicBool>,
     hotkeys: Option<HotkeyRegistry>,
     hotkey_errors: Vec<String>,
+    /// Hotkey button that is waiting for a key press, and why the last press was refused.
+    capturing_hotkey: Option<egui::Id>,
+    capture_error: Option<String>,
     autostart_error: Option<String>,
     toast: Option<Toast>,
     library: Library,
@@ -242,6 +245,8 @@ impl SillyBorgApp {
             show_requested,
             hotkeys: hotkeys.ok(),
             hotkey_errors,
+            capturing_hotkey: None,
+            capture_error: None,
             autostart_error: None,
             toast: just_updated.then(|| Toast {
                 text: format!("Tiksu Clipper päivitetty versioon {}", update::CURRENT),
@@ -827,19 +832,18 @@ impl SillyBorgApp {
                 Stroke::new(2.0, tk::MINT),
                 egui::StrokeKind::Inside,
             );
-            if strip_resp.clicked() {
-                if let Some(pos) = strip_resp.interact_pointer_pos() {
+            if strip_resp.clicked()
+                && let Some(pos) = strip_resp.interact_pointer_pos() {
                     ed.preview = t_of(pos.x);
                 }
-            }
             let min_len = 0.5f64.min(duration);
             for (which, t) in [(0, ed.start), (1, end)] {
                 let handle = Rect::from_center_size(pos2(x_of(t), strip.center().y), vec2(10.0, strip.height() + 8.0));
                 let resp = ui.interact(handle.expand2(vec2(6.0, 0.0)), ui.id().with(("trim_handle", which)), Sense::drag());
                 let color = if resp.hovered() || resp.dragged() { Color32::WHITE } else { tk::MINT };
                 ui.painter().rect_filled(handle, CornerRadius::same(3), color);
-                if resp.dragged() {
-                    if let Some(pos) = resp.interact_pointer_pos() {
+                if resp.dragged()
+                    && let Some(pos) = resp.interact_pointer_pos() {
                         let t = t_of(pos.x);
                         if which == 0 {
                             ed.start = t.min(end - min_len).max(0.0);
@@ -849,7 +853,6 @@ impl SillyBorgApp {
                             ed.preview = end;
                         }
                     }
-                }
                 resp.on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
             }
             let px = x_of(ed.preview);
@@ -1198,6 +1201,19 @@ impl SillyBorgApp {
                 )
             };
             ui.add(egui::Label::new(RichText::new(hint).size(12.0).color(tk::MUTED)).wrap());
+            // More than half of the free RAM: the buffer would starve the game (or Windows).
+            let free_mb = win::available_ram_bytes().map(|b| b / 1_000_000);
+            if let Some(free_mb) = free_mb.filter(|free| self.config.buffer_in_memory && buffer_ram_mb(&self.config) > free / 2) {
+                ui.add_space(4.0);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("Muistia on vapaana vain {} Mt. Valitse lyhyempi leike, pienempi bittinopeus tai puskuri levylle.", free_mb))
+                            .size(12.0)
+                            .color(tk::DANGER),
+                    )
+                    .wrap(),
+                );
+            }
         });
     }
 
@@ -1228,18 +1244,44 @@ impl SillyBorgApp {
         tk::grid(ui, self, 340.0, &[Self::hotkey_card, Self::extra_hotkeys_card, Self::folder_card]);
     }
 
-    fn hotkey_combo(ui: &mut egui::Ui, id: impl std::hash::Hash + std::fmt::Debug, value: &mut String) {
-        egui::ComboBox::from_id_salt(id).selected_text(value.as_str()).width(150.0).show_ui(ui, |ui| {
-            for key in HOTKEYS {
-                ui.selectable_value(value, key.to_string(), key);
+    /// A button showing the key; clicking it listens for the next key press (Esc cancels).
+    fn hotkey_picker(ui: &mut egui::Ui, id: egui::Id, value: &mut String, capturing: &mut Option<egui::Id>, error: &mut Option<String>) {
+        let listening = *capturing == Some(id);
+        let label = if listening { "Paina näppäintä…".to_string() } else { format!("{}  {}", KEYBOARD, value) };
+        if tk::button(ui, if listening { Kind::Primary } else { Kind::Secondary }, Size::Md, &label, true).clicked() {
+            *capturing = if listening { None } else { Some(id) };
+            *error = None;
+        }
+        if !listening {
+            return;
+        }
+        for event in ui.input(|i| i.events.clone()) {
+            if let egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. } = event {
+                if key == egui::Key::Escape {
+                    *capturing = None;
+                } else {
+                    match crate::hotkey::format_hotkey(modifiers.ctrl, modifiers.alt, modifiers.shift, key.name()) {
+                        Ok(text) => {
+                            *value = text;
+                            *capturing = None;
+                            *error = None;
+                        }
+                        Err(e) => *error = Some(e),
+                    }
+                }
             }
-        });
+        }
+        if let Some(e) = error.as_ref().filter(|_| capturing.is_some()) {
+            ui.add(egui::Label::new(RichText::new(e).size(12.0).color(tk::DANGER)).wrap());
+        } else {
+            ui.label(RichText::new("Esc peruu.").size(12.0).color(tk::MUTED));
+        }
     }
 
     fn hotkey_card(&mut self, ui: &mut egui::Ui) {
         tk::card(ui, |ui| {
             tk::card_header(ui, "Pääpikanäppäin", "Toimii myös koko näytön peleissä.");
-            Self::hotkey_combo(ui, "hotkey", &mut self.config.hotkey);
+            Self::hotkey_picker(ui, egui::Id::new("hotkey"), &mut self.config.hotkey, &mut self.capturing_hotkey, &mut self.capture_error);
             ui.label(
                 RichText::new(format!("Tallentaa {} (Laatu-sivun leikkeen pituus).", fmt_secs(self.config.clip_duration_secs)))
                     .size(12.0)
@@ -1260,7 +1302,7 @@ impl SillyBorgApp {
                     ui.separator();
                 }
                 ui.horizontal(|ui| {
-                    Self::hotkey_combo(ui, ("extra_hotkey", i), &mut extra.hotkey);
+                    Self::hotkey_picker(ui, egui::Id::new(("extra_hotkey", i)), &mut extra.hotkey, &mut self.capturing_hotkey, &mut self.capture_error);
                     if tk::button(ui, Kind::Ghost, Size::Sm, TRASH, true).on_hover_text("Poista").clicked() {
                         remove = Some(i);
                     }
@@ -1295,11 +1337,10 @@ impl SillyBorgApp {
                 });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                if tk::button(ui, Kind::Secondary, Size::Md, "Selaa…", true).clicked() {
-                    if let Some(folder) = rfd::FileDialog::new().set_directory(&self.config.output_dir).pick_folder() {
+                if tk::button(ui, Kind::Secondary, Size::Md, "Selaa…", true).clicked()
+                    && let Some(folder) = rfd::FileDialog::new().set_directory(&self.config.output_dir).pick_folder() {
                         self.config.output_dir = folder;
                     }
-                }
                 if tk::button(ui, Kind::Ghost, Size::Md, &format!("{} Avaa kansio", FOLDER_OPEN), true).clicked() {
                     self.open_output_dir();
                 }
@@ -1500,11 +1541,10 @@ impl SillyBorgApp {
                 if tk::button(ui, Kind::Secondary, Size::Sm, "Avaa loki", true).clicked() {
                     let _ = std::process::Command::new("notepad").arg(crate::applog::path()).spawn();
                 }
-                if tk::button(ui, Kind::Ghost, Size::Sm, "Asetuskansio", true).clicked() {
-                    if let Some(dir) = AppConfig::config_path().parent() {
+                if tk::button(ui, Kind::Ghost, Size::Sm, "Asetuskansio", true).clicked()
+                    && let Some(dir) = AppConfig::config_path().parent() {
                         let _ = std::process::Command::new("explorer").arg(dir).spawn();
                     }
-                }
             });
         });
     }

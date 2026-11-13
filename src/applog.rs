@@ -31,11 +31,10 @@ fn file() -> &'static Option<Mutex<File>> {
 }
 
 pub fn line(args: std::fmt::Arguments) {
-    if let Some(f) = file() {
-        if let Ok(mut f) = f.lock() {
+    if let Some(f) = file()
+        && let Ok(mut f) = f.lock() {
             let _ = writeln!(f, "{} {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), args);
         }
-    }
 }
 
 /// Panics go to the log too; a windows-subsystem app has no console to print them on.

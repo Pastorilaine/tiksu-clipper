@@ -61,7 +61,7 @@ pub fn scan(dir: &Path) -> Vec<ClipEntry> {
             })
         })
         .collect();
-    clips.sort_by(|a, b| b.modified.cmp(&a.modified));
+    clips.sort_by_key(|c| std::cmp::Reverse(c.modified));
     clips.truncate(MAX_CLIPS);
     clips
 }

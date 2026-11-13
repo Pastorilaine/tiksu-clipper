@@ -4,6 +4,15 @@ version = "0.2.0"
 default-run = "silly-borg"
 edition = "2024"
 
+[build-dependencies]
+winresource = "0.1.34"
+
+# Smaller exe; no panic=abort: the capture threads rely on catching panics (see capture.rs).
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
 [dependencies]
 chrono = "0.4.45"
 dirs = "7.0.0"
@@ -16,7 +25,7 @@ serde_json = "1.0.151"
 tray-icon = "0.26.0"
 egui-phosphor = "0.14.0"
 windows-capture = "2.0.1"
-windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_System_Performance", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_System_Registry", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_System_Diagnostics_Debug"] }
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_System_Performance", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_System_Registry", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_System_Diagnostics_Debug", "Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
 # Same version windows-capture already builds; only the in-memory stream types are used from it.
 windows = { version = "0.62.2", features = ["Storage_Streams", "Foundation"] }
 wasapi = "0.25"

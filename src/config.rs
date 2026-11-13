@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::audio::DEFAULT_DEVICE;
 
@@ -217,28 +217,40 @@ impl AppConfig {
     }
 
     pub fn load() -> Self {
-        let path = Self::config_path();
-        if path.exists() {
-            if let Ok(contents) = fs::read_to_string(&path) {
-                match serde_json::from_str::<AppConfig>(&contents) {
-                    Ok(cfg) => return cfg,
-                    Err(e) => println!("config.json ei kelpaa, käytetään oletuksia: {}", e),
+        Self::load_from(&Self::config_path())
+    }
+
+    /// An unreadable file is moved to `config.json.bad` instead of being overwritten with defaults,
+    /// so the user's settings can still be recovered by hand.
+    fn load_from(path: &Path) -> Self {
+        if let Ok(contents) = fs::read_to_string(path) {
+            match serde_json::from_str::<AppConfig>(&contents) {
+                Ok(cfg) => return cfg,
+                Err(e) => {
+                    let bad = path.with_extension("json.bad");
+                    println!("config.json ei kelpaa ({}), siirretty: {}", e, bad.display());
+                    let _ = fs::rename(path, bad);
                 }
             }
         }
 
         let default_cfg = Self::default();
-        let _ = default_cfg.save();
+        let _ = default_cfg.save_to(path);
         default_cfg
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let path = Self::config_path();
+        self.save_to(&Self::config_path())
+    }
+
+    /// Writes a temp file and renames it over the old one: a crash mid-write never leaves half a config.
+    fn save_to(&self, path: &Path) -> std::io::Result<()> {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let json = serde_json::to_string_pretty(self)?;
-        fs::write(path, json)
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, serde_json::to_string_pretty(self)?)?;
+        fs::rename(&tmp, path)
     }
 
     /// Longest clip any hotkey can ask for: the buffer must hold this much.
@@ -289,6 +301,27 @@ impl AppConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn broken_config_is_kept_aside_and_save_is_atomic() {
+        let dir = std::env::temp_dir().join("silly_borg_cfg_test");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+
+        fs::write(&path, "{ not json").unwrap();
+        let cfg = AppConfig::load_from(&path);
+        assert_eq!(cfg.hotkey, "F10");
+        assert_eq!(fs::read_to_string(dir.join("config.json.bad")).unwrap(), "{ not json");
+        assert!(serde_json::from_str::<AppConfig>(&fs::read_to_string(&path).unwrap()).is_ok());
+
+        let mut edited = cfg.clone();
+        edited.hotkey = "F8".into();
+        edited.save_to(&path).unwrap();
+        assert_eq!(AppConfig::load_from(&path).hotkey, "F8");
+        assert!(!dir.join("config.json.tmp").exists());
+        let _ = fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn old_config_still_loads_and_profile_overrides() {
