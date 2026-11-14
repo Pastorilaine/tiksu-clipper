@@ -115,6 +115,15 @@ pub struct AppConfig {
     #[serde(default = "default_frame_rate")]
     pub frame_rate: u32,
 
+    /// Bittinopeus on 1080p-kuvalle; muun kokoisella kuvalla se skaalataan kuvapisteiden mukaan
+    // Vanhoissa asetustiedostoissa kenttää ei ole: silloin bittinopeus pysyy sellaisenaan (false)
+    #[serde(default)]
+    pub scale_bitrate: bool,
+
+    /// Pienin pystysuuntainen koko jolla video koodataan (0 = kaapatun kuvan koko). Pienempi kuva kevyempi koneelle.
+    #[serde(default)]
+    pub max_height: u32,
+
     /// Soitetaanko merkkiääni klipin tallentuessa
     #[serde(default = "default_true")]
     pub play_sound: bool,
@@ -191,6 +200,8 @@ impl Default for AppConfig {
             extra_hotkeys: Vec::new(),
             bitrate: 20_000_000,
             frame_rate: 60,
+            scale_bitrate: true,
+            max_height: 0,
             play_sound: true,
             overlay: true,
             desktop_audio: DesktopAudioMode::Device,
@@ -279,6 +290,30 @@ impl AppConfig {
         cfg
     }
 
+    /// Size the video is encoded at: the captured size, shrunk to `max_height` if that is set and smaller.
+    /// Both sides stay even, as H.264 needs.
+    pub fn encode_size(&self, width: u32, height: u32) -> (u32, u32) {
+        let (width, height) = ((width / 2) * 2, (height / 2) * 2);
+        if self.max_height == 0 || height <= self.max_height {
+            return (width, height);
+        }
+        let h = (self.max_height / 2) * 2;
+        let w = ((width as u64 * h as u64 / height as u64) as u32 / 2) * 2;
+        (w.max(2), h.max(2))
+    }
+
+    /// Bits per second for a video of this size. The stored bitrate is meant for 1920x1080; with
+    /// `scale_bitrate` other sizes follow the pixel count, but slower than linearly (pixels^0.8),
+    /// because the bits a picture needs grow slower than its area.
+    pub fn effective_bitrate(&self, width: u32, height: u32) -> u32 {
+        if !self.scale_bitrate {
+            return self.bitrate;
+        }
+        let (w, h) = self.encode_size(width, height);
+        let ratio = (w as f64 * h as f64) / (1920.0 * 1080.0);
+        ((self.bitrate as f64 * ratio.powf(0.8)) as u32).clamp(2_000_000, 150_000_000)
+    }
+
     pub fn profile_for(&self, exe: &str) -> Option<&GameProfile> {
         self.profiles.iter().find(|p| p.exe.eq_ignore_ascii_case(exe))
     }
@@ -287,8 +322,8 @@ impl AppConfig {
     pub fn video_differs(&self, other: &AppConfig) -> bool {
         (self.capture_source_type, self.monitor_index, &self.window_title, &self.window_process)
             != (other.capture_source_type, other.monitor_index, &other.window_title, &other.window_process)
-            || (self.frame_rate, self.bitrate, self.segment_duration_secs, self.buffer_in_memory)
-                != (other.frame_rate, other.bitrate, other.segment_duration_secs, other.buffer_in_memory)
+            || (self.frame_rate, self.bitrate, self.scale_bitrate, self.max_height, self.segment_duration_secs, self.buffer_in_memory)
+                != (other.frame_rate, other.bitrate, other.scale_bitrate, other.max_height, other.segment_duration_secs, other.buffer_in_memory)
     }
 
     /// Settings that need the audio sources reopened (the audio buffer is kept).
@@ -323,6 +358,24 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+
+    #[test]
+    fn bitrate_follows_picture_size_and_encode_size_is_capped() {
+        let mut cfg = AppConfig { bitrate: 20_000_000, ..AppConfig::default() };
+        assert_eq!(cfg.effective_bitrate(1920, 1080), 20_000_000);
+        let ultrawide = cfg.effective_bitrate(3440, 1440);
+        assert!((36_000_000..42_000_000).contains(&ultrawide), "{}", ultrawide);
+        assert!(cfg.effective_bitrate(1280, 720) < 12_000_000);
+        cfg.scale_bitrate = false;
+        assert_eq!(cfg.effective_bitrate(3440, 1440), 20_000_000);
+
+        cfg.max_height = 1080;
+        assert_eq!(cfg.encode_size(3440, 1440), (2580, 1080));
+        assert_eq!(cfg.encode_size(1920, 1080), (1920, 1080));
+        assert_eq!(cfg.encode_size(1366, 768), (1366, 768));
+        cfg.max_height = 0;
+        assert_eq!(cfg.encode_size(1921, 1081), (1920, 1080));
+    }
     #[test]
     fn old_config_still_loads_and_profile_overrides() {
         // A config saved by an older version: unknown field, new fields missing.

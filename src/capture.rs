@@ -58,6 +58,10 @@ pub struct Status {
     /// The chosen window wasn't found, so the primary monitor is captured instead.
     pub fallback: bool,
     pub ffmpeg_ok: bool,
+    /// Size the video is encoded at, and the bit rate it gets (0 before the first capture starts).
+    pub capture_size: (u32, u32),
+    pub encode_size: (u32, u32),
+    pub bitrate: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +185,9 @@ pub fn spawn(config: AppConfig) -> (Arc<Shared>, JoinHandle<()>) {
             target: String::new(),
             fallback: false,
             ffmpeg_ok: true,
+            capture_size: (0, 0),
+            encode_size: (0, 0),
+            bitrate: 0,
         }),
         saving: AtomicBool::new(false),
         worker_failed: AtomicBool::new(false),
@@ -450,6 +457,15 @@ impl Supervisor {
             shared: self.shared.clone(),
             tap: self.tap.clone(),
         };
+        {
+            let (ew, eh) = cfg.encode_size(flags.width, flags.height);
+            let bitrate = cfg.effective_bitrate(flags.width, flags.height);
+            self.shared.set_status(|s| {
+                s.capture_size = (flags.width, flags.height);
+                s.encode_size = (ew, eh);
+                s.bitrate = bitrate;
+            });
+        }
         let interval_ms = (1000.0 / cfg.frame_rate as f64).round() as u64;
         let settings = Settings::new(
             item,
@@ -511,10 +527,16 @@ struct Segment {
 
 impl Segment {
     fn new(flags: &CaptureFlags, index: u64) -> Result<Self, BoxError> {
-        let video = VideoSettingsBuilder::new(flags.width, flags.height)
+        let (out_w, out_h) = flags.config.encode_size(flags.width, flags.height);
+        let mut video = VideoSettingsBuilder::new(flags.width, flags.height)
             .sub_type(VideoSettingsSubType::H264)
-            .bitrate(flags.config.bitrate)
-            .frame_rate(flags.config.frame_rate);
+            .bitrate(flags.config.effective_bitrate(flags.width, flags.height))
+            .frame_rate(flags.config.frame_rate)
+            // High profile: a bit more picture per bit than the default Main.
+            .profile_id(100);
+        if (out_w, out_h) != (flags.width, flags.height) {
+            video = video.output_size(out_w, out_h);
+        }
         let audio = AudioSettingsBuilder::new().disabled(true);
         let (encoder, sink) = if flags.config.buffer_in_memory {
             let stream = InMemoryRandomAccessStream::new()?;
@@ -803,13 +825,25 @@ mod tests {
         cfg.play_sound = false;
         cfg.overlay = false;
         cfg.profiles.clear();
+        // Manual probing: TIKSU_E2E_FPS / TIKSU_E2E_MBPS / TIKSU_E2E_SECS reproduce a user's settings.
+        let env = |name: &str| std::env::var(name).ok().and_then(|v| v.parse::<u64>().ok());
+        if let Some(fps) = env("TIKSU_E2E_FPS") {
+            cfg.frame_rate = fps as u32;
+        }
+        if let Some(mbps) = env("TIKSU_E2E_MBPS") {
+            cfg.bitrate = mbps as u32 * 1_000_000;
+        }
+        if let Some(h) = env("TIKSU_E2E_HEIGHT") {
+            cfg.max_height = h as u32;
+        }
+        let wait = env("TIKSU_E2E_SECS").unwrap_or(5);
 
         let (shared, handle) = spawn(cfg);
-        thread::sleep(Duration::from_secs(8));
+        thread::sleep(Duration::from_secs(wait + 4));
         assert_eq!(shared.status.lock().state, RunState::Running);
         assert!(shared.status.lock().audio_warnings.is_empty(), "{:?}", shared.status.lock().audio_warnings);
         assert!(shared.ring.stats().2 > 0, "segments should be in memory");
-        shared.save_clip(5);
+        shared.save_clip(wait);
         thread::sleep(Duration::from_millis(200));
         while shared.saving.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(100));

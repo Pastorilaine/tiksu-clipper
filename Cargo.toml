@@ -29,9 +29,13 @@ egui-phosphor = "0.14.0"
 windows-capture = "2.0.1"
 windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_System_Performance", "Win32_System_Diagnostics_ToolHelp", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_System_Registry", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_System_Diagnostics_Debug", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_Graphics_Dwm"] }
 # Same version windows-capture already builds; only the in-memory stream types are used from it.
-windows = { version = "0.62.2", features = ["Storage_Streams", "Foundation"] }
+windows = { version = "0.62.2", features = ["Storage_Streams", "Foundation", "Win32_Media_MediaFoundation", "Win32_System_Com"] }
 wasapi = "0.25"
 # Update signatures (ed25519) and key generation for the release tool.
 ed25519-dalek = "2"
 sha2 = "0.10"
 getrandom = "0.3"
+
+# Vendored with small changes (H.264 High profile, output scaling); see vendor/windows-capture/PATCHES.md
+[patch.crates-io]
+windows-capture = { path = "vendor/windows-capture" }

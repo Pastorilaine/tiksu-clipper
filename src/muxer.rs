@@ -9,6 +9,8 @@ use crate::audio::HNS_PER_SEC;
 use crate::buffer::{SegmentData, SegmentInfo};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// ffmpeg runs while a game is in front: it must never take CPU from it.
+const BELOW_NORMAL_PRIORITY: u32 = 0x0000_4000;
 
 /// `ffmpeg.exe` next to our exe wins (portable install), then the copy the app downloaded itself,
 /// otherwise whatever is on PATH.
@@ -18,7 +20,7 @@ fn tool(name: &str) -> Command {
     let downloaded = crate::ffmpeg::tool_dir().map(|dir| dir.join(&file));
     let local = [beside_exe, downloaded].into_iter().flatten().find(|p| p.exists());
     let mut cmd = Command::new(local.unwrap_or_else(|| PathBuf::from(name)));
-    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY);
     cmd
 }
 
@@ -87,7 +89,12 @@ pub fn concat_segments(segments: &[SegmentInfo], audio: &[(PathBuf, &str)], outp
     if !audio.is_empty() {
         cmd.args(["-c:a", "aac", "-b:a", "192k"]);
     }
-    cmd.args(["-c:v", "copy", "-movflags", "+faststart"]).arg(output_file);
+    // The encoder converts with BT.709 limited range but writes no colour tags; players then guess
+    // (often BT.601 for small pictures, which shifts the colours). Tag the stream, no re-encode.
+    cmd.args(["-c:v", "copy", "-bsf:v", "h264_metadata=video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1"])
+        .args(["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"])
+        .args(["-movflags", "+faststart"])
+        .arg(output_file);
 
     let result = run(cmd);
     let _ = fs::remove_file(&list_path);

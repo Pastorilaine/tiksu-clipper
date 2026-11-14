@@ -36,13 +36,17 @@ fn audio_apps(windows: &[WindowInfo]) -> Vec<String> {
     apps
 }
 
-/// Quality presets: (name, description, FPS, Mbps).
-const QUALITY_PRESETS: [(&str, &str, u32, u32); 4] = [
-    ("Kevyt", "Pienet tiedostot, kevyt kuorma.", 30, 8),
-    ("Tasapaino", "Suositus useimpiin peleihin.", 60, 20),
-    ("Terävä", "Nopea liike pysyy tarkkana.", 60, 40),
-    ("Kilpapeli", "120 FPS nopeille näytöille.", 120, 60),
+/// Quality presets: (name, description, FPS, Mbps at 1080p, max height; 0 = captured size).
+const QUALITY_PRESETS: [(&str, &str, u32, u32, u32); 5] = [
+    ("Heikko kone", "Hidas tietokone tai kannettava: pieni kuva, kevyt kuorma.", 30, 5, 720),
+    ("Kevyt", "Pienet tiedostot, kevyt kuorma.", 30, 8, 0),
+    ("Tasapaino", "Suositus useimpiin peleihin.", 60, 20, 0),
+    ("Terävä", "Nopea liike pysyy tarkkana.", 60, 30, 0),
+    ("Kilpapeli", "120 FPS nopeille näytöille.", 120, 45, 0),
 ];
+
+/// Largest picture height to encode at; 0 keeps the captured size.
+const PICTURE_HEIGHTS: [(u32, &str); 4] = [(0, "Alkuperäinen"), (1440, "1440p"), (1080, "1080p"), (720, "720p")];
 
 const CLIP_LENGTHS: [(u64, &str); 5] = [(30, "30 s"), (60, "1 min"), (120, "2 min"), (180, "3 min"), (300, "5 min")];
 const EXTRA_LENGTHS: [(u64, &str); 5] = [(15, "15 s"), (30, "30 s"), (60, "1 min"), (120, "2 min"), (300, "5 min")];
@@ -57,8 +61,8 @@ fn mb_per_minute(mbps: u32) -> u32 {
 }
 
 /// RAM the in-memory buffer needs: the longest clip plus the segment being recorded.
-fn buffer_ram_mb(cfg: &AppConfig) -> u64 {
-    cfg.bitrate as u64 / 8 * (cfg.max_clip_secs() + cfg.segment_duration_secs) / 1_000_000
+fn buffer_ram_mb(cfg: &AppConfig, bitrate: u32) -> u64 {
+    bitrate as u64 / 8 * (cfg.max_clip_secs() + cfg.segment_duration_secs) / 1_000_000
 }
 
 fn fmt_time(secs: f64) -> String {
@@ -189,6 +193,8 @@ pub struct SillyBorgApp {
     last_update_state: UpdateState,
     page: Page,
     gpu_name: String,
+    /// Hardware H.264 encoder Windows offers; `None` means video is encoded on the CPU.
+    hw_encoder: Option<String>,
     monitors: Vec<MonitorInfo>,
     windows: Vec<WindowInfo>,
     microphones: Vec<String>,
@@ -268,6 +274,7 @@ impl SillyBorgApp {
         let windows = enumerate_windows();
         Self {
             gpu_name: win::gpu_name(),
+            hw_encoder: win::hardware_h264_encoder(),
             monitors: enumerate_monitors(),
             audio_apps: audio_apps(&windows),
             windows,
@@ -302,6 +309,19 @@ impl SillyBorgApp {
             config,
             shared,
         }
+    }
+
+    /// Size of the picture being captured (or, before capture starts, of the selected monitor).
+    fn capture_size(&self) -> (u32, u32) {
+        let size = self.shared.status.lock().capture_size;
+        if size.0 > 0 {
+            return size;
+        }
+        self.monitors
+            .iter()
+            .find(|m| m.index == self.config.monitor_index)
+            .or(self.monitors.first())
+            .map_or((1920, 1080), |m| (m.width, m.height))
     }
 
     fn notify(&mut self, ctx: &egui::Context, tone: Tone, text: impl Into<String>) {

@@ -85,7 +85,7 @@ fn profile_panel(ui: &mut egui::Ui, index: usize, p: &mut GameProfile, active: b
             tk::toggle(ui, "Kuvaa vain pelin ikkuna", "Pois päältä käytetään perusasetusten kuvauslähdettä.", &mut p.capture_window);
             tk::row_wide(ui, "Laatu", "", |ui| {
                 let mut quality = (p.frame_rate, p.bitrate / 1_000_000);
-                let options: Vec<((u32, u32), &str)> = QUALITY_PRESETS.iter().map(|(name, _, fps, mbps)| ((*fps, *mbps), *name)).collect();
+                let options: Vec<((u32, u32), &str)> = QUALITY_PRESETS.iter().map(|(name, _, fps, mbps, _)| ((*fps, *mbps), *name)).collect();
                 if tk::segmented(ui, &mut quality, &options) {
                     p.frame_rate = quality.0;
                     p.bitrate = quality.1 * 1_000_000;

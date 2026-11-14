@@ -104,6 +104,12 @@ impl SillyBorgApp {
                 Setup::Idle => ("ffmpeg puuttuu, joten leikkeitä ei voi tallentaa.".to_string(), Fix::RetryFfmpeg),
             });
         }
+        if self.hw_encoder.is_none() && self.saved.frame_rate > 30 {
+            problems.push((
+                "Näytönohjain ei tarjoa laitteistoenkoodausta, joten video koodataan prosessorilla ja kone kuormittuu. Valitse Heikko kone -profiili tai 30 FPS.".to_string(),
+                Fix::Open(Page::Quality),
+            ));
+        }
         if let RunState::Failed(e) = &status.state {
             problems.push((e.clone(), Fix::Open(Page::Source)));
         }

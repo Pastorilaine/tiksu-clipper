@@ -217,3 +217,53 @@ pub fn style_titlebar(bg: eframe::egui::Color32, text: eframe::egui::Color32, bo
     set(36, colorref(text)); // DWMWA_TEXT_COLOR
     DONE.store(true, Ordering::Relaxed);
 }
+
+/// Name of the first hardware H.264 encoder Windows offers (NVENC, AMF, Quick Sync), or `None` when
+/// video would be encoded on the CPU. The transcoder falls back to software without saying so.
+pub fn hardware_h264_encoder() -> Option<String> {
+    use windows::Win32::Media::MediaFoundation::{
+        IMFActivate, MFMediaType_Video, MFStartup, MFShutdown, MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE,
+        MFT_ENUM_FLAG_SORTANDFILTER, MFT_FRIENDLY_NAME_Attribute, MFT_REGISTER_TYPE_INFO, MFVideoFormat_H264, MFSTARTUP_LITE,
+        MF_VERSION, MFTEnumEx,
+    };
+    use windows::Win32::System::Com::CoTaskMemFree;
+    unsafe {
+        MFStartup(MF_VERSION, MFSTARTUP_LITE).ok()?;
+        let output = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
+        let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
+        let mut count = 0u32;
+        let found = MFTEnumEx(
+            MFT_CATEGORY_VIDEO_ENCODER,
+            MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
+            None,
+            Some(&output),
+            &mut activates,
+            &mut count,
+        );
+        let mut name = None;
+        if found.is_ok() && !activates.is_null() {
+            let items = std::slice::from_raw_parts_mut(activates, count as usize);
+            name = items.first().and_then(|a| a.as_ref()).and_then(|a| {
+                let mut buf = [0u16; 256];
+                let mut len = 0u32;
+                a.GetString(&MFT_FRIENDLY_NAME_Attribute, &mut buf, Some(&mut len)).ok()?;
+                Some(String::from_utf16_lossy(&buf[..(len as usize).min(buf.len())]))
+            });
+            for item in items.iter_mut() {
+                *item = None; // releases the COM reference
+            }
+            CoTaskMemFree(Some(activates as *const _));
+        }
+        let _ = MFShutdown();
+        name.or_else(|| (count > 0).then(|| "Laitteistoenkooderi".to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn hardware_encoder_query_runs() {
+        // Machine dependent: a CI runner has none. It must just not crash.
+        println!("hardware encoder: {:?}", super::hardware_h264_encoder());
+    }
+}

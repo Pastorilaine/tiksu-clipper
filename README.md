@@ -6,6 +6,7 @@ Kevyt Windows-leiketallennin (instant replay). Pyörii taustalla ja tallentaa pi
 
 - **Puskuri muistissa:** viimeiset minuutit odottavat valmiiksi pakattuina RAM:issa. Levylle kirjoitetaan vasta tallennettaessa. Halutessa puskurin voi pitää myös levyllä.
 - **Laitteistoenkoodaus:** Windows Graphics Capture ja H.264 Media Foundationin kautta. Windows valitsee NVENC-, AMF- tai Quick Sync -enkooderin itse.
+- **Laatu:** High-profiili ja bittinopeus skaalautuu kuvakoon mukaan (iso tai ultralaaja näyttö ei jää bittinälkään). Kuvan voi pienentää (1080p, 720p, 540p), joten heikompikin kone pärjää: "Heikko kone" -profiili on 720p, 30 FPS. Värit merkitään BT.709:ksi. Jos näytönohjain ei tarjoa H.264-enkooderia, sovellus varoittaa. ffmpeg ajetaan matalalla prioriteetilla, ettei peli hidastu tallennettaessa.
 - **Ääni:** äänilaitteen loopback, yksittäisen sovelluksen äänet ja mikrofoni. Halutessa tietokone ja mikrofoni tallentuvat myös omille raidoilleen.
 - **Pikanäppäimet:** yksi pääpikanäppäin ja enintään kolme lisänäppäintä eri pituisille leikkeille (15 s – 5 min). Toimivat myös koko näytön peleissä.
 - **Leikkeet-sivu:** pikkukuvat, toisto, kansioon siirtyminen ja poisto roskakoriin. Lisäksi trimmaus: filmiliuska, kaksi kahvaa ja ruudun tarkka leikkaus, ja alkuperäinen leike säilyy.
@@ -27,7 +28,7 @@ Mitattu RTX 4060 -koneella, 3440×1440 @ 60 FPS, 40 Mbps, 30 s leike, sovellukse
 | CPU | ~4–6 % yhdestä ytimestä rauhallisella ruudulla, enemmän nopeassa liikkeessä |
 | Levylle kirjoitus | ~0 Mt/min (vain tallennettaessa) |
 
-Muistipuskurin koko on suunnilleen bittinopeus / 8 × (pisin leike + 10 s). Laatu-sivu näyttää arvion valituilla asetuksilla.
+Muistipuskurin koko on suunnilleen bittinopeus / 8 × (pisin leike + 10 s). Laatu-sivu näyttää arvion valituilla asetuksilla. Windowsin MediaTranscoder ei anna säätää B-kehyksiä, GOP-pituutta tai rate controlia, joten laatua säädetään bittinopeudella, kuvakoolla ja kuvanopeudella. `vendor/windows-capture` on pieni paikattu kopio (kuvan pienennys ja profiili), muutokset `vendor/windows-capture/PATCHES.md`.
 
 ## Vaatimukset
 
