@@ -1,6 +1,6 @@
 [package]
 name = "silly-borg"
-version = "0.3.0"
+version = "0.4.0"
 default-run = "silly-borg"
 edition = "2024"
 license = "MIT"
