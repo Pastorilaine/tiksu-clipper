@@ -1,143 +1,124 @@
 # Tiksu Clipper
 
-Kevyt Windows-leiketallennin (instant replay). Pyörii taustalla ja tallentaa pikanäppäimellä viimeiset sekunnit tai minuutit MP4-leikkeeksi.
+Tallenna pelin tai ruudun parhaat hetket jälkikäteen. Tiksu Clipper pitää taustalla muistissa viimeiset minuutit. Kun jotain hienoa tapahtuu, painat yhtä näppäintä, ja juuri tapahtunut tallentuu videoksi.
 
-## Ominaisuudet
+**[⬇ Lataa Tiksu Clipper (TiksuClipper-Setup.exe)](https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/TiksuClipper-Setup.exe)**
 
-- **Puskuri muistissa:** viimeiset minuutit odottavat valmiiksi pakattuina RAM:issa. Levylle kirjoitetaan vasta tallennettaessa. Halutessa puskurin voi pitää myös levyllä.
-- **Laitteistoenkoodaus:** Windows Graphics Capture ja H.264 Media Foundationin kautta. Windows valitsee NVENC-, AMF- tai Quick Sync -enkooderin itse.
-- **Laatu:** High-profiili ja bittinopeus skaalautuu kuvakoon mukaan (iso tai ultralaaja näyttö ei jää bittinälkään). Kuvan voi pienentää (1080p, 720p, 540p), joten heikompikin kone pärjää: "Heikko kone" -profiili on 720p, 30 FPS. Värit merkitään BT.709:ksi. Jos näytönohjain ei tarjoa H.264-enkooderia, sovellus varoittaa. ffmpeg ajetaan matalalla prioriteetilla, ettei peli hidastu tallennettaessa.
-- **Ääni:** äänilaitteen loopback, yksittäisen sovelluksen äänet ja mikrofoni. Halutessa tietokone ja mikrofoni tallentuvat myös omille raidoilleen.
-- **Pikanäppäimet:** yksi pääpikanäppäin ja enintään kolme lisänäppäintä eri pituisille leikkeille (15 s – 5 min). Toimivat myös koko näytön peleissä.
-- **Leikkeet-sivu:** pikkukuvat, toisto, kansioon siirtyminen, kopiointi leikepöydälle (Ctrl+V liittää tiedoston esim. Discordiin) ja poisto roskakoriin. Lisäksi trimmaus: filmiliuska, kaksi kahvaa ja ruudun tarkka leikkaus näytönohjaimella (NVENC, AMF tai Quick Sync, varalla prosessori), ja alkuperäinen leike säilyy.
-- **Leikkeen nimi:** pelin nimi ja aikaleima, esim. `cs2_2026-11-14_18-32-05.mp4`. Peli tunnistetaan peliprofiilista, kuvattavasta ikkunasta tai etualalla olevasta ohjelmasta.
-- **Peliprofiilit:** kun peli tulee etualalle, sen kuvanopeus, bittinopeus, leikkeen pituus ja tarvittaessa pelkän peli-ikkunan kuvaus otetaan käyttöön automaattisesti.
-- **Ikkunakaappaus prosessin mukaan:** ikkuna löytyy, vaikka sen otsikko vaihtuisi. Jos ikkunaa ei ole auki, kuvataan näyttöä, ja kuvaus vaihtuu ikkunaan heti, kun se avautuu.
-- **Ilmaisinalue:** ikkunan sulkeminen jättää puskurin käyntiin. Sovelluksen voi käynnistää Windowsin mukana suoraan ilmaisinalueelle.
-- **Ilmoitukset:** pieni ilmoitus ruudun kulmassa näkyy ikkunoitujen ja reunattomien pelien päällä. Merkkiääni on eri onnistumiselle ja virheelle.
-- **Yksi instanssi:** uusi käynnistys tuo jo käynnissä olevan ikkunan esiin.
-- **Loki:** `%APPDATA%\SillyBorg\tiksu.log`.
+Ilmainen, ei mainoksia, ei tiliä eikä kirjautumista. Toimii Windows 10:ssä ja 11:ssä.
 
-## Kuinka kevyt
+---
 
-Mitattu RTX 4060 -koneella, 3440×1440 @ 60 FPS, 40 Mbps, 30 s leike, sovelluksen ääni ja mikrofoni päällä:
+## Mitä sillä voi tehdä
 
-| | |
-|---|---|
-| exe | 9,4 Mt |
-| RAM (working set) | ~230–290 Mt, josta videopuskuri noin 200 Mt |
-| CPU | ~4–6 % yhdestä ytimestä rauhallisella ruudulla, enemmän nopeassa liikkeessä |
-| Levylle kirjoitus | ~0 Mt/min (vain tallennettaessa) |
+- **Tallenna jälkikäteen.** Paina **F10**, niin viimeiset 2 minuuttia (pituuden voi vaihtaa) tallentuvat MP4-videoksi. Toimii myös koko näytön peleissä.
+- **Jaa heti.** Kopioi leike yhdellä napilla ja liitä se **Ctrl+V**:llä Discordiin, WhatsAppiin tai mihin tahansa.
+- **Leikkaa.** Valitse leikkeestä paras kohta. Alkuperäinen video säilyy.
+- **Ääni mukaan.** Pelin ja tietokoneen äänet ja halutessa oma mikrofonisi.
+- **Ei hidasta peliä.** Video pakataan näytönohjaimella. Heikommalle koneelle on oma kevyt laatuasetus.
 
-Muistipuskurin koko on suunnilleen bittinopeus / 8 × (pisin leike + 10 s). Laatu-sivu näyttää arvion valituilla asetuksilla. Windowsin MediaTranscoder ei anna säätää B-kehyksiä, GOP-pituutta tai rate controlia, joten laatua säädetään bittinopeudella, kuvakoolla ja kuvanopeudella. `vendor/windows-capture` on pieni paikattu kopio (kuvan pienennys ja profiili), muutokset `vendor/windows-capture/PATCHES.md`.
-
-## Vaatimukset
-
-- Windows 10 1903 tai uudempi (mukana tulevat `curl.exe` ja `tar.exe` riittävät, muuta ei asenneta)
-- Mitään ei tarvitse ladata erikseen. Jos `ffmpeg` ja `ffprobe` puuttuvat, sovellus lataa kerran valmiin version (noin 35 Mt, SHA-256-tarkistuksella) kansioon `%LOCALAPPDATA%\TiksuClipper\ffmpeg`. Puskuri kuvaa jo latauksen aikana. Jos `ffmpeg.exe` on `silly-borg.exe`:n vieressä tai PATHissa, sitä käytetään sellaisenaan.
+---
 
 ## Asennus
 
-Lataa `TiksuClipper-Setup.exe` [julkaisusivulta](https://github.com/Pastorilaine/tiksu-clipper/releases/latest) ja aja se. Admin-oikeuksia ei tarvita.
+Asennus vie noin minuutin. Järjestelmänvalvojan oikeuksia ei tarvita.
 
-- Asentuu kansioon `%LOCALAPPDATA%\Programs\TiksuClipper`, ja Käynnistä-valikkoon tulee pikakuvake (työpöydälle valinnaisesti).
-- Sovelluksen oma päivitys toimii asennetussa kansiossa. Uusi asennusohjelma päivittää vanhan asennuksen paikallaan.
-- Poisto: Windowsin asetukset, Sovellukset. Poisto jättää asetukset ja leikkeet paikoilleen (`%APPDATA%\SillyBorg`, leikekansio).
-- Pelkkä `TiksuClipper.exe` toimii myös ilman asennusta, mutta älä siirrä tai poista sitä käynnissä ollessa, sillä muuten päivitys ei onnistu.
+### 1. Lataa asennusohjelma
 
-## Ajaminen
+Lataa **[TiksuClipper-Setup.exe](https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/TiksuClipper-Setup.exe)**. Linkki lataa aina uusimman version.
 
-```powershell
-cargo build --release
-.\target\release\silly-borg.exe          # ikkuna auki
-.\target\release\silly-borg.exe --tray   # suoraan ilmaisinalueelle
-```
+Jos selain kysyy, haluatko varmasti säilyttää tiedoston, valitse **Säilytä**.
 
-Asetukset tallentuvat tiedostoon `%APPDATA%\SillyBorg\config.json`, ja niitä muokataan sovelluksen omilla sivuilla.
+### 2. Käynnistä asennusohjelma
 
-## Päivitykset ja jakelu
+Avaa ladattu `TiksuClipper-Setup.exe` (yleensä Lataukset-kansiossa).
 
-Sovellus tarkistaa päivitykset 20 s käynnistyksen jälkeen ja sen jälkeen 6 tunnin välein. Tarkistuksen voi tehdä myös Sovellus-sivun napista.
+Windows saattaa näyttää sinisen ikkunan **"Windows suojasi tietokonettasi"**. Se näkyy, koska Tiksu Clipper on uusi, pieni ohjelma, jota Windows ei vielä tunne. Jatka näin:
 
-1. Se lukee `latest.json`:n kahdesta lähteestä ja valitsee uudemman version:
-   - `https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/latest.json`
-   - `https://tiksu.fi/clipper/latest.json`
-2. Se lataa exen ja tarkistaa sen **ed25519-allekirjoituksen**. Allekirjoitus kattaa sekä version että exen tavut, joten muokattua tai vanhaa exeä ei asenneta, vaikka lähde olisi murrettu.
-3. Se vaihtaa exen pyörivän ohjelman alta. Uusi versio käynnistyy seuraavalla kerralla, tai heti "Käynnistä uudelleen" -napista.
+1. Valitse **Lisätietoja**.
+2. Valitse **Suorita silti**.
 
-Automaattisen asennuksen voi kytkeä pois päältä, jolloin sovellus vain ilmoittaa uudesta versiosta. Jos exe on kansiossa, johon ei voi kirjoittaa (esim. `Program Files`), sovellus ohjaa lataussivulle.
+### 3. Käy asennus läpi
 
-### Julkaisu (GitHub Actions)
+1. Asennusohjelma ehdottaa kansiota. Oletus käy hyvin, joten valitse **Seuraava**.
+2. Valitse halutessasi **Luo kuvake työpöydälle** ja sitten **Seuraava**.
+3. Valitse **Asenna**.
+4. Jätä **Käynnistä Tiksu Clipper** valituksi ja valitse **Valmis**.
 
-**Ennen tagia, savutesti puhtaalla koneella** (Windows Sandbox riittää; GitHubin ajurissa ei ole näytönohjainta, joten CI ei kaappaa):
+Tiksu Clipper löytyy jatkossa Käynnistä-valikosta nimellä **Tiksu Clipper**.
 
-1. Asenna `TiksuClipper-Setup.exe` (käännös `ISCC.exe /DAppVersion=x.y.z installer\TiksuClipper.iss`). ffmpeg latautuu ensikäynnistyksellä.
-2. Tallenna leike pikanäppäimellä. Leike aukeaa ja siinä on ääni.
-3. Leikkaa leike ja kopioi se leikepöydälle. Ctrl+V liittää tiedoston kansioon.
-4. Päivitys edellisestä versiosta: asenna vanha, aseta `TIKSU_UPDATE_SOURCE` uuteen `latest.json`:iin ja paina Tarkista nyt.
+### 4. Ensimmäinen käynnistys
 
-```powershell
-# 1. Nosta version Cargo.toml:ssa, esim. 0.3.0, ja commitoi
-git tag -a v0.3.0 -m "Mitä uutta tässä versiossa"   # viesti = päivityksen muutoslista
-git push origin main v0.3.0
-```
+Ensimmäisellä kerralla Tiksu Clipper lataa tarvitsemansa videotyökalun (ffmpeg, noin 35 Mt). Lataus näkyy Yleiskatsaus-sivulla ja kestää yleensä alle minuutin. Ohjelma kuvaa jo latauksen aikana, mutta leikkeen voi tallentaa vasta, kun lataus on valmis. Tämä tehdään vain kerran.
 
-`.github/workflows/release.yml` ajaa testit, kääntää, allekirjoittaa ja luo GitHub-julkaisun, jossa on tiedostot `TiksuClipper.exe` (päivityksille), `TiksuClipper-Setup.exe` (asennusohjelma, skripti `installer/TiksuClipper.iss`, Inno Setup) ja `latest.json`. Se tarvitsee repoon secretin `TIKSU_SIGNING_KEY`, jonka arvo on avaintiedoston sisältö.
+---
 
-### tiksu.fi
+## Ensimmäinen leike
 
-- **Latauslinkki**, joka osoittaa aina uusimpaan versioon: `https://github.com/Pastorilaine/tiksu-clipper/releases/latest/download/TiksuClipper-Setup.exe`
-- **Päivityslähde:** kopioi julkaisun `latest.json` osoitteeseen `https://tiksu.fi/clipper/latest.json`. Jos haluat jakaa myös exen tiksu.fi:stä, kopioi se ja vaihda `latest.json`:n `url`. Allekirjoitus pysyy voimassa, koska se ei koske URL:ia.
+1. Kun Tiksu Clipper on auki, yläkulmassa lukee **Puskuri käynnissä**. Se tallentaa nyt taustalla.
+2. Tee mitä tahansa: pelaa, katso videota tai selaa.
+3. Paina **F10**. Ruudun kulmaan tulee ilmoitus **Leike tallennettu**, ja kuulet merkkiäänen.
+4. Avaa **Leikkeet**-sivu. Siellä voit toistaa, leikata, kopioida ja poistaa leikkeitä.
 
-### Allekirjoitusavain
+Leikkeet tallentuvat kansioon **Videot\Clips**. Leikkeen nimessä on pelin nimi ja aika, esimerkiksi `cs2_2026-11-14_18-32-05.mp4`.
 
-- Avain luodaan komennolla `cargo run --release --bin tiksu-release -- keygen <tiedosto>`. Nykyinen avain on tiedostossa `%USERPROFILE%\.tiksu\clipper-signing.key`, ja sen julkinen puoli on `src/update.rs`:n `PUBLIC_KEY`.
-- **Ota avaimesta varmuuskopio.** Jos avain katoaa, asennetut sovellukset eivät enää hyväksy päivityksiä, ja käyttäjien täytyy ladata uusi versio käsin.
-- Avain ei koskaan päädy repoon (`*.key` on `.gitignore`:ssa).
-- Käsin allekirjoitus: `tiksu-release sign --exe TiksuClipper.exe --version 0.3.0 --url <url> --key <avain> --out latest.json`
-- Testaus ilman julkaisua: aseta `TIKSU_UPDATE_SOURCE=<oma latest.json -osoite>`. Allekirjoitus vaaditaan silti, ja testi-instanssi pyörii erillään oikeasta.
+Kun suljet ikkunan, Tiksu Clipper jää toimimaan taustalle kellon viereen (ilmaisinalue). Ohjelman saa kokonaan kiinni oikean alakulman kuvakkeesta.
 
-## Rakenne
+---
 
-- `src/main.rs`: käynnistys, yksi instanssi, lokimakrot
-- `src/capture.rs`: valvoja (käynnistys, profiilit, ikkunan seuranta), WGC-kaappaus, segmentit ja tallennus
-- `src/audio.rs`: WASAPI-kaappaus, työpöytä- ja mikrofoniväylät kellosynkronoituina rengaspuskureina
-- `src/buffer.rs`: videosegmenttien rengaspuskuri (muisti tai levy)
-- `src/muxer.rs`: ffmpeg-ajot: yhdistäminen, trimmaus, pikkukuvat ja kestot
-- `src/ffmpeg.rs`: lataa ffmpegin ensikäynnistyksellä (kiinnitetty versio, SHA-256)
-- `src/library.rs`: leikekirjasto ja taustatyöntekijä pikkukuville
-- `src/hotkey.rs`: globaalit pikanäppäimet
-- `src/tray.rs`: ilmaisinalueen kuvake ja valikko
-- `src/overlay.rs`: ilmoitus ruudun kulmassa (Win32)
-- `src/update.rs`, `src/manifest.rs`: automaattinen päivitys ja allekirjoitukset; `src/bin/tiksu-release.rs`: julkaisun allekirjoitustyökalu
-- `src/win.rs`: Win32-apurit: yksi instanssi, näytönohjain, prosessit, automaattinen käynnistys, roskakori
-- `src/applog.rs`: lokitiedosto
-- `src/ui/mod.rs`: ikkuna, sivupalkki, yläpalkki, ilmoitukset ja sivurekisteri (`Page`); `src/ui/pages/`: yksi tiedosto per sivu
-- `src/tiksu.rs`: käyttöliittymän tyylijärjestelmä (värit, fontit, napit, paneelit, rivit), pohjana IT-Veljekset DESIGN.md
-- `src/config.rs`, `src/devices.rs`, `src/notification.rs`: asetukset, laitteet ja ikkunat, merkkiäänet
+## Asetukset lyhyesti
 
-### Uuden sivun lisääminen
+Kaikki asetukset ovat ohjelman vasemmassa sivupalkissa.
 
-1. Lisää `Page`-enumiin (`src/ui/mod.rs`) uusi vaihtoehto ja täytä se kohtiin `ALL`, `label`, `icon` ja `group`. Sivupalkki ja murupolku poimivat sen taulukosta.
-2. Lisää rivi `render_page`-funktioon.
-3. Kirjoita `src/ui/pages/<nimi>.rs`: yksi `impl SillyBorgApp` -metodi, joka kutsuu `tk::page_head(...)` ja `tk::content(...)` ja rakentaa sisällön paneeleista (`tk::panel`) ja riveistä (`tk::row`, `tk::row_wide`, `tk::toggle`). Listaa tiedosto tiedostossa `src/ui/pages/mod.rs`.
-4. Kääntäjä huomauttaa jokaisesta `match`-lausekkeesta, johon uusi sivu puuttuu.
+| Sivu | Mitä siellä säädetään |
+|---|---|
+| **Kuvauslähde** | Koko näyttö tai yksittäinen ikkuna |
+| **Äänet** | Tietokoneen ääni, yksittäinen ohjelma ja mikrofoni |
+| **Laatu** | Valmiit laatuprofiilit, leikkeen pituus, kuvakoko ja kuvanopeus. Heikolle koneelle valitse **Heikko kone**. |
+| **Pikanäppäimet** | Vaihda F10 toiseen näppäimeen tai lisää näppäimiä eri pituisille leikkeille |
+| **Peliprofiilit** | Pelikohtaiset asetukset, jotka vaihtuvat itsestään, kun peli käynnistyy |
+| **Sovellus** | Käynnistys Windowsin mukana, ilmoitukset ja päivitykset |
+| **Ohje** | Vastauksia yleisimpiin kysymyksiin |
 
-Ohje-sivun kysymykset ovat datana tiedostossa `src/ui/pages/help.rs` (`FAQ`). Debug-käännöksen voi avata tiettyyn sivuun: `TIKSU_PAGE=Laatu`.
+---
+
+## Päivitykset
+
+Tiksu Clipper päivittää itsensä taustalla. Uusi versio otetaan käyttöön, kun ohjelma käynnistyy seuraavan kerran, tai heti **Käynnistä uudelleen** -napista. Sinun ei tarvitse ladata uutta asennusohjelmaa.
+
+---
+
+## Ongelmia?
+
+**Leike ei tallennu.** Katso Yleiskatsaus-sivun kohta **Vaatii huomiota**. Yleisimmät syyt:
+- Videotyökalu latautuu vielä (vain ensimmäisellä kerralla).
+- Puskuri on pysäytetty. Paina yläkulmasta **Käynnistä puskuri**.
+- F10 on toisen ohjelman käytössä, esimerkiksi näytönohjaimen overlayn. Vaihda näppäin Pikanäppäimet-sivulla.
+
+**Kuva on musta tai peli ei näy.** Valitse Kuvauslähde-sivulta **koko näyttö** ja pelaa reunattomassa ikkunatilassa (borderless).
+
+**Leikkeestä puuttuu ääni.** Tarkista Äänet-sivulta, että oikea äänilaite on valittu. Jos haluat oman äänesi mukaan, kytke mikrofoni päälle.
+
+**Kone hidastuu.** Valitse Laatu-sivulta **Heikko kone** -profiili tai pienempi kuvakoko ja 30 FPS.
+
+**Jokin muu.** Sovellus-sivulla on **Avaa loki** -nappi. Liitä loki, kun kerrot ongelmasta [GitHubissa](https://github.com/Pastorilaine/tiksu-clipper/issues).
+
+---
+
+## Poistaminen
+
+Avaa **Asetukset → Sovellukset → Asennetut sovellukset**, etsi **Tiksu Clipper** ja valitse **Poista**.
+
+Leikkeesi jäävät kansioon Videot\Clips. Asetukset jäävät kansioon `%APPDATA%\SillyBorg`. Voit poistaa ne käsin, jos et tarvitse niitä.
+
+---
 
 ## Lisenssi
 
-Tiksu Clipper on avointa lähdekoodia [MIT-lisenssillä](LICENSE). Koodia saa käyttää, muokata ja jakaa vapaasti.
+Tiksu Clipper on avointa lähdekoodia [MIT-lisenssillä](LICENSE).
 
 Kolmannen osapuolen osat:
 - Rust-kirjastot (`Cargo.lock`) ovat pääosin MIT- ja Apache-2.0-lisensoituja.
 - `assets/fonts`: fontit SIL Open Font License -lisenssillä (`assets/fonts/OFL.txt`).
 - **FFmpeg** ei kuulu tähän ohjelmistoon. Sovellus lataa ja ajaa sen erillisenä ohjelmana ([Gyan.dev-build](https://github.com/GyanD/codexffmpeg/releases), GPL). Tiksu Clipper ei sisällytä sitä itseensä eikä linkitä siihen.
 
-## Testit
-
-```powershell
-cargo test                                      # yksikkötestit
-cargo test end_to_end -- --ignored              # oikea kaappaus + 3 ääniraitaa
-cargo test real_clip -- --ignored               # trimmaus/pikkukuva edellisen leikkeelle
-```
+**Kehittäjille:** kääntäminen, rakenne, testit ja julkaisu ovat tiedostossa [docs/KEHITTAJILLE.md](docs/KEHITTAJILLE.md).
