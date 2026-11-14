@@ -703,19 +703,31 @@ fn notify(cfg: &AppConfig, success: bool, title: &str, subtitle: &str) {
     }
 }
 
+/// File name prefix: the game the clip is from. Its profile, else the captured window's process,
+/// else whatever was in front when the key was pressed (the game, for monitor capture), unless that
+/// is the desktop or this app.
+fn clip_prefix(profile: Option<&str>, window: Option<&str>, foreground: Option<&str>) -> String {
+    const NOT_A_GAME: [&str; 5] = ["explorer.exe", "applicationframehost.exe", "silly-borg.exe", "tiksuclipper.exe", "searchhost.exe"];
+    let foreground = foreground.filter(|exe| !NOT_A_GAME.contains(&exe.to_ascii_lowercase().as_str()));
+    [profile, window, foreground]
+        .into_iter()
+        .flatten()
+        .find_map(|exe| Path::new(exe).file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty()))
+        .unwrap_or_else(|| "clip".to_string())
+}
+
 /// Waits for the just-rotated segment to be finalized, then writes the clip.
 fn save_clip(done_rx: Receiver<()>, secs: u64, flags: &CaptureFlags, index: u64) {
     let _ = done_rx.recv_timeout(Duration::from_secs(15));
     let shared = &flags.shared;
     let cfg = shared.live_config();
 
-    let prefix = shared
-        .status
-        .lock()
-        .active_profile
-        .as_deref()
-        .and_then(|exe| Path::new(exe).file_stem().map(|s| s.to_string_lossy().to_string()))
-        .unwrap_or_else(|| "clip".to_string());
+    let prefix = {
+        let s = shared.status.lock();
+        let window = (cfg.capture_source_type == CaptureTargetType::Window && !s.fallback).then_some(s.target.as_str());
+        let foreground = Window::foreground().ok().and_then(|w| w.process_name().ok());
+        clip_prefix(s.active_profile.as_deref(), window, foreground.as_deref())
+    };
     let stamp = format!("{}_{}", prefix, Local::now().format("%Y-%m-%d_%H-%M-%S"));
     // Two saves within the same second must not overwrite each other (ffmpeg runs with -y).
     let out_path = (1..)
@@ -807,6 +819,16 @@ fn write_clip(segments: &[SegmentInfo], tap: &AudioTap, cfg: &AppConfig, work_di
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clip_prefix_names_the_game() {
+        assert_eq!(clip_prefix(Some("cs2.exe"), Some("other.exe"), Some("x.exe")), "cs2");
+        assert_eq!(clip_prefix(None, Some("Valorant.exe"), None), "Valorant");
+        assert_eq!(clip_prefix(None, None, Some("eldenring.exe")), "eldenring");
+        // The desktop or this app in front says nothing about the game.
+        assert_eq!(clip_prefix(None, None, Some("Explorer.EXE")), "clip");
+        assert_eq!(clip_prefix(None, None, None), "clip");
+    }
 
     /// Manual end-to-end: records the primary monitor + default audio, saves a clip mid-segment.
     /// `cargo test end_to_end -- --ignored`

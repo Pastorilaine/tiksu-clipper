@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use eframe::egui::{self, pos2, vec2, Align, Align2, Color32, CornerRadius, Layout, Margin, Rect, Sense, Stroke};
 use egui_phosphor::regular::{
-    ARROWS_CLOCKWISE, ARROW_CIRCLE_UP, ARROW_LEFT, ARROW_SQUARE_OUT, BELL, BOOK_OPEN, CARET_DOWN, CARET_RIGHT, CHECK_CIRCLE, CPU,
+    ARROWS_CLOCKWISE, ARROW_CIRCLE_UP, ARROW_LEFT, ARROW_SQUARE_OUT, BELL, BOOK_OPEN, CARET_DOWN, CARET_RIGHT, CHECK_CIRCLE, COPY, CPU,
     FILM_STRIP, FOLDER_OPEN, GAME_CONTROLLER, GAUGE, GEAR, INFO, KEYBOARD, LIFEBUOY, LIGHTBULB, LIST_CHECKS, MEMORY, MICROPHONE, MONITOR,
     PLAY, PLUS, PLUS_CIRCLE, POWER, QUESTION, SCISSORS, SLIDERS, SPEAKER_HIGH, SQUARES_FOUR, TIMER, TRASH, WARNING, WAVEFORM, X,
 };
@@ -170,6 +170,7 @@ enum ClipAction {
     Play(PathBuf),
     Edit(PathBuf),
     Folder(PathBuf),
+    Copy(PathBuf),
     AskDelete(PathBuf),
     Delete(PathBuf),
 }

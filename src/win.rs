@@ -155,6 +155,53 @@ pub fn recycle(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Puts a file on the clipboard the way Explorer's Copy does (CF_HDROP), so Ctrl+V pastes the file
+/// itself into Discord, a chat or a folder.
+pub fn copy_file_to_clipboard(path: &Path) -> Result<(), String> {
+    use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
+    use windows_sys::Win32::Foundation::GlobalFree;
+    use windows_sys::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows_sys::Win32::UI::Shell::DROPFILES;
+    const CF_HDROP: u32 = 15;
+
+    // DROPFILES header, then the paths as a double-null-terminated UTF-16 list.
+    let mut list = wide(&path.to_string_lossy());
+    list.push(0);
+    let header = std::mem::size_of::<DROPFILES>();
+    let size = header + list.len() * 2;
+    unsafe {
+        let mem = GlobalAlloc(GMEM_MOVEABLE, size);
+        if mem.is_null() {
+            return Err("muistia ei saatu".to_string());
+        }
+        let ptr = GlobalLock(mem) as *mut u8;
+        if ptr.is_null() {
+            GlobalFree(mem);
+            return Err("muistia ei saatu".to_string());
+        }
+        let mut drop: DROPFILES = std::mem::zeroed();
+        drop.pFiles = header as u32;
+        drop.fWide = 1;
+        std::ptr::write_unaligned(ptr as *mut DROPFILES, drop);
+        std::ptr::copy_nonoverlapping(list.as_ptr() as *const u8, ptr.add(header), list.len() * 2);
+        GlobalUnlock(mem);
+
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            GlobalFree(mem);
+            return Err("leikepöytä on toisen ohjelman käytössä".to_string());
+        }
+        EmptyClipboard();
+        // On success the clipboard owns the memory.
+        let ok = !SetClipboardData(CF_HDROP, mem).is_null();
+        CloseClipboard();
+        if !ok {
+            GlobalFree(mem);
+            return Err("leikepöydälle kirjoitus epäonnistui".to_string());
+        }
+    }
+    Ok(())
+}
+
 /// Waits (up to `timeout_ms`) for a process to exit, e.g. the old version handing over after an update.
 pub fn wait_for_exit(pid: u32, timeout_ms: u32) {
     use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
@@ -265,5 +312,19 @@ mod tests {
     fn hardware_encoder_query_runs() {
         // Machine dependent: a CI runner has none. It must just not crash.
         println!("hardware encoder: {:?}", super::hardware_h264_encoder());
+    }
+
+    /// Overwrites the clipboard, so manual: `cargo test clipboard -- --ignored`
+    #[test]
+    #[ignore]
+    fn clipboard_holds_the_file() {
+        let file = std::env::temp_dir().join("tiksu clipboard ä.mp4");
+        std::fs::write(&file, b"x").unwrap();
+        super::copy_file_to_clipboard(&file).unwrap();
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "[Console]::OutputEncoding=[Text.Encoding]::UTF8; (Get-Clipboard -Format FileDropList).FullName"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), file.to_string_lossy());
     }
 }

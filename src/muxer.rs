@@ -12,6 +12,22 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// ffmpeg runs while a game is in front: it must never take CPU from it.
 const BELOW_NORMAL_PRIORITY: u32 = 0x0000_4000;
 
+/// BT.709 limited range in both the H.264 stream and the MP4 container. The capture encoder converts
+/// that way but writes no tags, and GPU encoders in a trim don't copy them either; untagged, players
+/// guess (often BT.601 for small pictures, which shifts the colours).
+const BT709_TAGS: [&str; 10] = [
+    "-bsf:v",
+    "h264_metadata=video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-colorspace",
+    "bt709",
+    "-color_range",
+    "tv",
+];
+
 /// `ffmpeg.exe` next to our exe wins (portable install), then the copy the app downloaded itself,
 /// otherwise whatever is on PATH.
 fn tool(name: &str) -> Command {
@@ -89,10 +105,8 @@ pub fn concat_segments(segments: &[SegmentInfo], audio: &[(PathBuf, &str)], outp
     if !audio.is_empty() {
         cmd.args(["-c:a", "aac", "-b:a", "192k"]);
     }
-    // The encoder converts with BT.709 limited range but writes no colour tags; players then guess
-    // (often BT.601 for small pictures, which shifts the colours). Tag the stream, no re-encode.
-    cmd.args(["-c:v", "copy", "-bsf:v", "h264_metadata=video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1"])
-        .args(["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"])
+    cmd.args(["-c:v", "copy"])
+        .args(BT709_TAGS)
         .args(["-movflags", "+faststart"])
         .arg(output_file);
 
@@ -101,8 +115,18 @@ pub fn concat_segments(segments: &[SegmentInfo], audio: &[(PathBuf, &str)], outp
     result.map(|_| ())
 }
 
-/// Cuts `[start, end]` seconds out of a clip into `output`. Re-encodes for a frame-exact cut;
-/// falls back to a keyframe-aligned stream copy if this ffmpeg has no libx264.
+/// Video encoders for a trim, best first: the GPU ones keep a weak CPU free (and fail in a moment
+/// when that GPU isn't there), libx264 is the CPU fallback, and a keyframe-aligned stream copy
+/// works with any ffmpeg.
+const TRIM_ENCODERS: [&[&str]; 5] = [
+    &["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "19", "-b:v", "0", "-profile:v", "high"],
+    &["-c:v", "h264_amf", "-quality", "quality", "-rc", "cqp", "-qp_i", "18", "-qp_p", "20", "-profile:v", "high"],
+    &["-c:v", "h264_qsv", "-preset", "medium", "-global_quality", "20", "-profile:v", "high"],
+    &["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"],
+    &["-c:v", "copy"],
+];
+
+/// Cuts `[start, end]` seconds out of a clip into `output`. Re-encodes for a frame-exact cut.
 pub fn trim(input: &Path, start: f64, end: f64, output: &Path) -> Result<(), String> {
     let cut = |video: &[&str]| {
         let mut cmd = tool("ffmpeg");
@@ -110,13 +134,22 @@ pub fn trim(input: &Path, start: f64, end: f64, output: &Path) -> Result<(), Str
             .arg(input)
             .args(["-t", &format!("{:.3}", (end - start).max(0.1)), "-map", "0"])
             .args(video)
+            .args(BT709_TAGS)
             .args(["-c:a", "copy", "-movflags", "+faststart"])
             .arg(output);
         run(cmd)
     };
-    cut(&["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"])
-        .or_else(|_| cut(&["-c:v", "copy"]))
-        .map(|_| ())
+    let mut last_err = String::new();
+    for video in TRIM_ENCODERS {
+        match cut(video) {
+            Ok(_) => {
+                println!("Leikattu enkooderilla {}", video[1]);
+                return Ok(());
+            }
+            Err(e) => last_err = e,
+        }
+    }
+    Err(last_err)
 }
 
 /// One frame at `at` seconds, letterboxed to exactly `w`×`h` RGBA.

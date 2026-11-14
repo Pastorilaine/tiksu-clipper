@@ -8,6 +8,10 @@ impl SillyBorgApp {
             ClipAction::Play(path) => library::open(&path),
             ClipAction::Edit(path) => self.open_editor(path),
             ClipAction::Folder(path) => library::show_in_folder(&path),
+            ClipAction::Copy(path) => match win::copy_file_to_clipboard(&path) {
+                Ok(()) => self.notify(ctx, Tone::Success, "Leike kopioitu. Liitä se Ctrl+V:llä esimerkiksi Discordiin."),
+                Err(e) => self.notify(ctx, Tone::Danger, format!("Kopiointi epäonnistui: {}", e)),
+            },
             ClipAction::AskDelete(path) => self.confirm_delete = Some(path),
             ClipAction::Delete(path) => {
                 self.confirm_delete = None;
@@ -92,7 +96,7 @@ impl SillyBorgApp {
                 }
 
                 ui.vertical(|ui| {
-                    ui.set_width((ui.available_width() - 330.0).max(120.0));
+                    ui.set_width((ui.available_width() - 370.0).max(120.0));
                     ui.spacing_mut().item_spacing.y = 2.0;
                     ui.add(egui::Label::new(tk::strong(&clip.name, 13.0)).truncate());
                     let date = chrono::DateTime::<chrono::Local>::from(clip.modified).format("%-d.%-m.%Y %H:%M");
@@ -110,6 +114,9 @@ impl SillyBorgApp {
                     }
                     if tk::button(ui, Kind::Ghost, Size::Sm, FOLDER_OPEN, true).on_hover_text("Näytä kansiossa").clicked() {
                         action = Some(ClipAction::Folder(clip.path.clone()));
+                    }
+                    if tk::button(ui, Kind::Ghost, Size::Sm, COPY, true).on_hover_text("Kopioi leikepöydälle, liitä Ctrl+V:llä").clicked() {
+                        action = Some(ClipAction::Copy(clip.path.clone()));
                     }
                     if tk::button(ui, Kind::Secondary, Size::Sm, &format!("{} Leikkaa", SCISSORS), true).clicked() {
                         action = Some(ClipAction::Edit(clip.path.clone()));

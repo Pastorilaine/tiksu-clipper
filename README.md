@@ -9,7 +9,8 @@ Kevyt Windows-leiketallennin (instant replay). Pyörii taustalla ja tallentaa pi
 - **Laatu:** High-profiili ja bittinopeus skaalautuu kuvakoon mukaan (iso tai ultralaaja näyttö ei jää bittinälkään). Kuvan voi pienentää (1080p, 720p, 540p), joten heikompikin kone pärjää: "Heikko kone" -profiili on 720p, 30 FPS. Värit merkitään BT.709:ksi. Jos näytönohjain ei tarjoa H.264-enkooderia, sovellus varoittaa. ffmpeg ajetaan matalalla prioriteetilla, ettei peli hidastu tallennettaessa.
 - **Ääni:** äänilaitteen loopback, yksittäisen sovelluksen äänet ja mikrofoni. Halutessa tietokone ja mikrofoni tallentuvat myös omille raidoilleen.
 - **Pikanäppäimet:** yksi pääpikanäppäin ja enintään kolme lisänäppäintä eri pituisille leikkeille (15 s – 5 min). Toimivat myös koko näytön peleissä.
-- **Leikkeet-sivu:** pikkukuvat, toisto, kansioon siirtyminen ja poisto roskakoriin. Lisäksi trimmaus: filmiliuska, kaksi kahvaa ja ruudun tarkka leikkaus, ja alkuperäinen leike säilyy.
+- **Leikkeet-sivu:** pikkukuvat, toisto, kansioon siirtyminen, kopiointi leikepöydälle (Ctrl+V liittää tiedoston esim. Discordiin) ja poisto roskakoriin. Lisäksi trimmaus: filmiliuska, kaksi kahvaa ja ruudun tarkka leikkaus näytönohjaimella (NVENC, AMF tai Quick Sync, varalla prosessori), ja alkuperäinen leike säilyy.
+- **Leikkeen nimi:** pelin nimi ja aikaleima, esim. `cs2_2026-11-14_18-32-05.mp4`. Peli tunnistetaan peliprofiilista, kuvattavasta ikkunasta tai etualalla olevasta ohjelmasta.
 - **Peliprofiilit:** kun peli tulee etualalle, sen kuvanopeus, bittinopeus, leikkeen pituus ja tarvittaessa pelkän peli-ikkunan kuvaus otetaan käyttöön automaattisesti.
 - **Ikkunakaappaus prosessin mukaan:** ikkuna löytyy, vaikka sen otsikko vaihtuisi. Jos ikkunaa ei ole auki, kuvataan näyttöä, ja kuvaus vaihtuu ikkunaan heti, kun se avautuu.
 - **Ilmaisinalue:** ikkunan sulkeminen jättää puskurin käyntiin. Sovelluksen voi käynnistää Windowsin mukana suoraan ilmaisinalueelle.
@@ -67,6 +68,13 @@ Sovellus tarkistaa päivitykset 20 s käynnistyksen jälkeen ja sen jälkeen 6 t
 Automaattisen asennuksen voi kytkeä pois päältä, jolloin sovellus vain ilmoittaa uudesta versiosta. Jos exe on kansiossa, johon ei voi kirjoittaa (esim. `Program Files`), sovellus ohjaa lataussivulle.
 
 ### Julkaisu (GitHub Actions)
+
+**Ennen tagia, savutesti puhtaalla koneella** (Windows Sandbox riittää; GitHubin ajurissa ei ole näytönohjainta, joten CI ei kaappaa):
+
+1. Asenna `TiksuClipper-Setup.exe` (käännös `ISCC.exe /DAppVersion=x.y.z installer\TiksuClipper.iss`). ffmpeg latautuu ensikäynnistyksellä.
+2. Tallenna leike pikanäppäimellä. Leike aukeaa ja siinä on ääni.
+3. Leikkaa leike ja kopioi se leikepöydälle. Ctrl+V liittää tiedoston kansioon.
+4. Päivitys edellisestä versiosta: asenna vanha, aseta `TIKSU_UPDATE_SOURCE` uuteen `latest.json`:iin ja paina Tarkista nyt.
 
 ```powershell
 # 1. Nosta version Cargo.toml:ssa, esim. 0.3.0, ja commitoi
